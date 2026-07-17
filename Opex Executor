@@ -1,0 +1,235 @@
+#!/bin/bash
+
+# ==============================================================================
+# Opex Executor Installer
+# ==============================================================================
+
+set -u
+
+# âš ï¸ CHANGE THIS TO YOUR ACTUAL GITHUB REPOSITORY URL âš ï¸
+GITHUB_REPO_URL="https://github.com/yourusername/opex-executor.git"
+
+abort() {
+  printf "%s\n" "$@" >&2
+  exit 1
+}
+
+# Fail fast with a concise message when not using bash
+if [ -z "${BASH_VERSION:-}" ]
+then
+  abort "Bash is required to interpret this script."
+fi
+
+# ------------------------------------------------------------------------------
+# String formatters for terminal output
+# ------------------------------------------------------------------------------
+if [[ -t 1 ]]
+then
+  tty_escape() { printf "\033[%sm" "$1"; }
+else
+  tty_escape() { :; }
+fi
+tty_mkbold() { tty_escape "1;$1"; }
+tty_underline="$(tty_escape "4;39")"
+tty_blue="$(tty_mkbold 34)"
+tty_red="$(tty_mkbold 31)"
+tty_bold="$(tty_mkbold 39)"
+tty_reset="$(tty_escape 0)"
+
+shell_join() {
+  local arg
+  printf "%s" "$1"
+  shift
+  for arg in "$@"
+  do
+    printf " %s" "${arg// /\ }"
+  done
+}
+
+chomp() {
+  printf "%s" "${1/"$'\n'"/}"
+}
+
+ohai() {
+  printf "${tty_blue}==>${tty_bold} %s${tty_reset}\n" "$(shell_join "$@")"
+}
+
+warn() {
+  printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")" >&2
+}
+
+# ------------------------------------------------------------------------------
+# OS and Environment Checks
+# ------------------------------------------------------------------------------
+case $(uname) in
+  Linux) OS_TYPE="Linux" ;;
+  Darwin) OS_TYPE="macOS" ;;
+  *) abort "Opex Executor is only supported on macOS and Linux." ;;
+esac
+
+UNAME_MACHINE="$(uname -m)"
+if [[ "${OS_TYPE}" == "macOS" ]]; then
+  if [[ "${UNAME_MACHINE}" == "arm64" ]]; then
+    OPEX_PREFIX="/opt/opex"
+  else
+    OPEX_PREFIX="/usr/local/opex"
+  fi
+else
+  OPEX_PREFIX="/opt/opex-executor"
+fi
+
+OPEX_BIN="${OPEX_PREFIX}/bin"
+
+# ------------------------------------------------------------------------------
+# Helper Functions
+# ------------------------------------------------------------------------------
+have_sudo_access() {
+  if [[ ! -x "/usr/bin/sudo" ]]; then
+    return 1
+  fi
+  
+  local -a SUDO=("/usr/bin/sudo")
+  if [[ -n "${NONINTERACTIVE-}" ]]; then
+    SUDO+=("-n")
+  fi
+
+  if [[ -z "${HAVE_SUDO_ACCESS-}" ]]; then
+    if [[ -n "${NONINTERACTIVE-}" ]]; then
+      "${SUDO[@]}" -l mkdir &>/dev/null
+    else
+      "${SUDO[@]}" -v && "${SUDO[@]}" -l mkdir &>/dev/null
+    fi
+    HAVE_SUDO_ACCESS="$?"
+  fi
+
+  return "${HAVE_SUDO_ACCESS}"
+}
+
+execute() {
+  if ! "$@"; then
+    abort "$(printf "Failed during: %s" "$(shell_join "$@")")"
+  fi
+}
+
+execute_sudo() {
+  local -a args=("$@")
+  if [[ "${EUID:-${UID}}" != "0" ]] && have_sudo_access; then
+    ohai "/usr/bin/sudo" "${args[@]}"
+    execute "/usr/bin/sudo" "${args[@]}"
+  else
+    ohai "${args[@]}"
+    execute "${args[@]}"
+  fi
+}
+
+getc() {
+  local save_state
+  save_state="$(/bin/stty -g)"
+  /bin/stty raw -echo
+  IFS='' read -r -n 1 -d '' "$@"
+  /bin/stty "${save_state}"
+}
+
+ring_bell() {
+  if [[ -t 1 ]]; then
+    printf "\a"
+  fi
+}
+
+wait_for_user() {
+  local c
+  echo
+  echo "Press ${tty_bold}RETURN${tty_reset}/${tty_bold}ENTER${tty_reset} to continue or any other key to abort:"
+  getc c
+  if ! [[ "${c}" == $'\r' || "${c}" == $'\n' ]]; then
+    exit 1
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# Main Execution
+# ------------------------------------------------------------------------------
+if [[ -z "${NONINTERACTIVE-}" ]] && [[ ! -t 0 ]]; then
+  warn 'Running in non-interactive mode because `stdin` is not a TTY.'
+  NONINTERACTIVE=1
+fi
+
+ohai 'Checking for `sudo` access (which may request your password)...'
+[[ "${EUID:-${UID}}" == "0" ]] || have_sudo_access
+
+ohai "This script will install Opex Executor to:"
+echo "${OPEX_PREFIX}"
+echo "${OPEX_BIN}"
+
+if [[ -z "${NONINTERACTIVE-}" ]]; then
+  ring_bell
+  wait_for_user
+fi
+
+ohai "Creating installation directories..."
+if [[ ! -d "${OPEX_PREFIX}" ]]; then
+  execute_sudo mkdir -p "${OPEX_PREFIX}"
+  execute_sudo chown -R "${USER}" "${OPEX_PREFIX}"
+fi
+
+if [[ ! -d "${OPEX_BIN}" ]]; then
+  execute mkdir -p "${OPEX_BIN}"
+fi
+
+# ------------------------------------------------------------------------------
+# Download and Install Logic
+# ------------------------------------------------------------------------------
+ohai "Cloning Opex Executor repository..."
+
+# Ensure git is installed
+if ! command -v git >/dev/null; then
+  abort "Git is required to install Opex Executor. Please install git and try again."
+fi
+
+# Clone or pull updates
+if [[ -d "${OPEX_PREFIX}/.git" ]]; then
+  ohai "Updating existing installation..."
+  execute git -C "${OPEX_PREFIX}" pull --force --quiet
+else
+  execute git clone --quiet "${GITHUB_REPO_URL}" "${OPEX_PREFIX}"
+fi
+
+# Symlink the main script so it can be run globally
+# Note: Ensure your main script in the repo is actually named 'opex' or update the name below
+if [[ -f "${OPEX_PREFIX}/opex" ]]; then
+  execute ln -sf "${OPEX_PREFIX}/opex" "${OPEX_BIN}/opex"
+  execute chmod +x "${OPEX_BIN}/opex"
+fi
+
+ohai "Installation successful!"
+echo
+ring_bell
+
+# ------------------------------------------------------------------------------
+# Next Steps & PATH configuration
+# ------------------------------------------------------------------------------
+ohai "Next steps:"
+case "${SHELL}" in
+  */bash*)
+    shell_rcfile="${HOME}/.bashrc"
+    ;;
+  */zsh*)
+    shell_rcfile="${ZDOTDIR:-"${HOME}"}/.zshrc"
+    ;;
+  */fish*)
+    shell_rcfile="${HOME}/.config/fish/config.fish"
+    ;;
+  *)
+    shell_rcfile="${ENV:-"${HOME}/.profile"}"
+    ;;
+esac
+
+if ! [[ ":${PATH}:" == *":${OPEX_BIN}:"* ]]; then
+  cat <<EOS
+- Run these commands in your terminal to add Opex Executor to your ${tty_bold}PATH${tty_reset}:
+    echo 'export PATH="${OPEX_BIN}:\$PATH"' >> ${shell_rcfile}
+    export PATH="${OPEX_BIN}:\$PATH"
+EOS
+else
+  echo "- Opex Executor is already in your PATH."
+fi
