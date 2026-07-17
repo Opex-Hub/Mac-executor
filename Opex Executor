@@ -6,15 +6,14 @@
 
 set -u
 
-# âš ï¸ CHANGE THIS TO YOUR ACTUAL GITHUB REPOSITORY URL âš ï¸
-GITHUB_REPO_URL="https://github.com/yourusername/opex-executor.git"
+# âš ï¸ PERMANENT RAW GITHUB URL (Cleaned of temporary tokens) âš ï¸
+DOWNLOAD_URL="https://raw.githubusercontent.com/Opex-Hub/Mac-executor/refs/heads/main/Opex%20Executor"
 
 abort() {
   printf "%s\n" "$@" >&2
   exit 1
 }
 
-# Fail fast with a concise message when not using bash
 if [ -z "${BASH_VERSION:-}" ]
 then
   abort "Bash is required to interpret this script."
@@ -179,27 +178,15 @@ fi
 # ------------------------------------------------------------------------------
 # Download and Install Logic
 # ------------------------------------------------------------------------------
-ohai "Cloning Opex Executor repository..."
+ohai "Downloading Opex Executor..."
 
-# Ensure git is installed
-if ! command -v git >/dev/null; then
-  abort "Git is required to install Opex Executor. Please install git and try again."
+if ! command -v curl >/dev/null; then
+  abort "curl is required to install Opex Executor. Please install curl and try again."
 fi
 
-# Clone or pull updates
-if [[ -d "${OPEX_PREFIX}/.git" ]]; then
-  ohai "Updating existing installation..."
-  execute git -C "${OPEX_PREFIX}" pull --force --quiet
-else
-  execute git clone --quiet "${GITHUB_REPO_URL}" "${OPEX_PREFIX}"
-fi
-
-# Symlink the main script so it can be run globally
-# Note: Ensure your main script in the repo is actually named 'opex' or update the name below
-if [[ -f "${OPEX_PREFIX}/opex" ]]; then
-  execute ln -sf "${OPEX_PREFIX}/opex" "${OPEX_BIN}/opex"
-  execute chmod +x "${OPEX_BIN}/opex"
-fi
+# Download the raw file directly into the installation path
+execute curl -fsSL "${DOWNLOAD_URL}" -o "${OPEX_BIN}/opex"
+execute chmod +x "${OPEX_BIN}/opex"
 
 ohai "Installation successful!"
 echo
