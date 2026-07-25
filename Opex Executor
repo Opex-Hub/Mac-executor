@@ -1,79 +1,40 @@
 #!/bin/bash
-# Opex Executor – macOS solid-blue UI (fixed)
-# Creates a dummy libopexapi.dylib so the app runs without missing-library errors.
-# Replace the dummy with a real library for actual Roblox injection.
-
+# Opex Executor – custom self-compiling version (Api.inject/execute stubs + GUI)
 set -e
 TMPDIR=$(mktemp -d /tmp/opex_XXXX)
 cd "$TMPDIR"
 
-# --- Build a dummy injection library (prints to console) ---
-cat > dummy_lib.c << 'EOF_LIB'
-#include <stdio.h>
-
-void Api_Inject(void) {
-    printf("[Dummy] Inject called.\n");
-}
-
-void Api_Execute(const char* script) {
-    printf("[Dummy] Execute script:\n%s\n", script);
-}
-EOF_LIB
-
-clang -dynamiclib -o libopexapi.dylib dummy_lib.c
-
-# --- Build the GUI app ---
 cat > opex.mm << 'EOF_CODE'
 #import <Cocoa/Cocoa.h>
-#import <dlfcn.h>
 
-typedef void (*InjectFunc)();
-typedef void (*ExecuteFunc)(const char*);
+// ------------------------------------------------------------
+// Custom Api class – replace stubs with your real logic
+// ------------------------------------------------------------
+@interface Api : NSObject
++ (BOOL)inject;
++ (BOOL)executeScript:(NSString *)script;
+@end
 
-static InjectFunc  pInject  = nullptr;
-static ExecuteFunc pExecute = nullptr;
-static void*       apiHandle = nullptr;
+@implementation Api
 
-static bool loadApiLibrary() {
-    if (pInject && pExecute) return true;
-    const char* paths[] = {
-        "./libopexapi.dylib",
-        "@executable_path/libopexapi.dylib",
-        "/usr/local/lib/libopexapi.dylib",
-        nullptr
-    };
-    for (const char** path = paths; *path; ++path) {
-        apiHandle = dlopen(*path, RTLD_LAZY);
-        if (apiHandle) break;
-    }
-    if (!apiHandle) return false;
-    pInject  = (InjectFunc) dlsym(apiHandle, "Api_Inject");
-    pExecute = (ExecuteFunc)dlsym(apiHandle, "Api_Execute");
-    if (!pInject || !pExecute) {
-        dlclose(apiHandle);
-        apiHandle = nullptr;
-        return false;
-    }
-    return true;
++ (BOOL)inject {
+    // TODO: Insert actual injection code here
+    NSLog(@"Api.inject() called – stub");
+    return YES;   // return NO on failure
 }
 
-class Api {
-public:
-    static bool inject() {
-        if (!loadApiLibrary()) return false;
-        pInject();
-        return true;
-    }
-    static bool execute(const char* script) {
-        if (!loadApiLibrary()) return false;
-        pExecute(script);
-        return true;
-    }
-};
++ (BOOL)executeScript:(NSString *)script {
+    if (!script || script.length == 0) return NO;
+    // TODO: Send the script to the injected environment
+    NSLog(@"Api.execute() called – stub");
+    return YES;
+}
+
+@end
+// ------------------------------------------------------------
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSTextView *scriptView;
-@property (strong) NSWindow   *mainWindow;
 @end
 
 @implementation AppDelegate
@@ -82,137 +43,96 @@ public:
     NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,800,520)
                                                    styleMask:(NSWindowStyleMaskTitled |
                                                               NSWindowStyleMaskClosable |
-                                                              NSWindowStyleMaskMiniaturizable |
-                                                              NSWindowStyleMaskResizable)
+                                                              NSWindowStyleMaskMiniaturizable)
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
     [window setTitle:@"Opex Executor"];
-    [window setBackgroundColor:[NSColor blueColor]];
-    [window center];
-    self.mainWindow = window;
+    [window setBackgroundColor:[NSColor colorWithCalibratedRed:0.68 green:0.85 blue:0.90 alpha:1.0]];
 
     NSView *contentView = [window contentView];
 
-    NSTextField *titleLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 470, 800, 40)];
+    // Title
+    NSTextField *titleLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(0,470,800,40)];
     [titleLabel setStringValue:@"Opex Executor"];
     [titleLabel setFont:[NSFont boldSystemFontOfSize:24]];
-    [titleLabel setTextColor:[NSColor whiteColor]];
+    [titleLabel setTextColor:[NSColor colorWithCalibratedRed:0.0 green:0.0 blue:0.5 alpha:1.0]];
     [titleLabel setBackgroundColor:[NSColor clearColor]];
     [titleLabel setBezeled:NO];
     [titleLabel setEditable:NO];
     [titleLabel setAlignment:NSTextAlignmentCenter];
     [contentView addSubview:titleLabel];
 
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 60, 760, 390)];
+    // Script text view
+    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(20,60,760,390)];
     [scrollView setHasVerticalScroller:YES];
-    [scrollView setAutoresizingMask:(NSViewWidthSizable|NSViewHeightSizable)];
     [scrollView setBorderType:NSBezelBorder];
 
-    NSTextView *textView = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 760, 390)];
+    NSTextView *textView = [[NSTextView alloc] initWithFrame:NSMakeRect(0,0,760,390)];
     [textView setFont:[NSFont userFixedPitchFontOfSize:13]];
     [textView setBackgroundColor:[NSColor colorWithCalibratedRed:0.94 green:0.97 blue:1.0 alpha:1.0]];
-    [textView setTextColor:[NSColor blackColor]];
-    [textView setEditable:YES];
-    [textView setSelectable:YES];
-    [textView setRichText:NO];
     self.scriptView = textView;
-
     [scrollView setDocumentView:textView];
     [contentView addSubview:scrollView];
 
-    NSButton *injectBtn = [[NSButton alloc] initWithFrame:NSMakeRect(20, 15, 100, 32)];
+    // Buttons
+    NSButton *injectBtn = [[NSButton alloc] initWithFrame:NSMakeRect(20,15,100,32)];
     [injectBtn setTitle:@"Inject"];
     [injectBtn setBezelStyle:NSBezelStyleRounded];
     [injectBtn setTarget:self];
     [injectBtn setAction:@selector(injectAction:)];
     [contentView addSubview:injectBtn];
 
-    NSButton *executeBtn = [[NSButton alloc] initWithFrame:NSMakeRect(140, 15, 100, 32)];
+    NSButton *executeBtn = [[NSButton alloc] initWithFrame:NSMakeRect(140,15,100,32)];
     [executeBtn setTitle:@"Execute"];
     [executeBtn setBezelStyle:NSBezelStyleRounded];
     [executeBtn setTarget:self];
     [executeBtn setAction:@selector(executeAction:)];
     [contentView addSubview:executeBtn];
 
-    NSButton *clearBtn = [[NSButton alloc] initWithFrame:NSMakeRect(260, 15, 100, 32)];
+    NSButton *clearBtn = [[NSButton alloc] initWithFrame:NSMakeRect(260,15,100,32)];
     [clearBtn setTitle:@"Clear"];
     [clearBtn setBezelStyle:NSBezelStyleRounded];
     [clearBtn setTarget:self];
     [clearBtn setAction:@selector(clearAction:)];
     [contentView addSubview:clearBtn];
 
-    [window makeFirstResponder:textView];
     [window makeKeyAndOrderFront:nil];
 }
 
-- (void)setupMainMenu {
-    NSMenu *mainMenu = [[NSMenu alloc] init];
-    NSMenuItem *appMenuItem = [[NSMenuItem alloc] init];
-    [mainMenu addItem:appMenuItem];
-    NSMenu *appMenu = [[NSMenu alloc] init];
-    [appMenuItem setSubmenu:appMenu];
-    [appMenu addItemWithTitle:@"Quit Opex"
-                       action:@selector(terminate:)
-                keyEquivalent:@"q"];
-    [NSApp setMainMenu:mainMenu];
-}
-
 - (void)injectAction:(id)sender {
-    if (Api::inject()) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Injection Successful"];
-        [alert setInformativeText:@"Executor injected into Roblox."];
-        [alert runModal];
-    } else {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Injection Failed"];
-        [alert setInformativeText:@"Could not load libopexapi.dylib.\n"
-                                 "Place a valid library next to this app and try again."];
-        [alert runModal];
-    }
+    BOOL success = [Api inject];
+    NSAlert *alert = [[NSAlert alloc] init];
+    [alert setMessageText: success ? @"Injection successful" : @"Injection failed"];
+    [alert setInformativeText: success ? @"Api.inject() returned YES." : @"Api.inject() returned NO."];
+    [alert runModal];
 }
 
 - (void)executeAction:(id)sender {
     NSString *code = [self.scriptView string];
-    if ([code length] == 0) {
+    if (code.length == 0) {
         NSAlert *alert = [[NSAlert alloc] init];
         [alert setMessageText:@"No Script"];
         [alert setInformativeText:@"Please enter a script to execute."];
         [alert runModal];
         return;
     }
-    const char* cScript = [code UTF8String];
-    if (Api::execute(cScript)) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Execution Successful"];
-        [alert setInformativeText:[NSString stringWithFormat:@"Executed script:\n%@", code]];
-        [alert runModal];
-    } else {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Execution Failed"];
-        [alert setInformativeText:@"Injection library not loaded.\n"
-                                 "Make sure libopexapi.dylib is present and you have injected first."];
-        [alert runModal];
-    }
+    BOOL success = [Api executeScript:code];
+    NSAlert *alert = [[NSAlert alloc] init];
+    [alert setMessageText: success ? @"Execution sent" : @"Execution failed"];
+    [alert setInformativeText: success ? @"Script passed to Api.execute()." : @"Api.execute() returned NO."];
+    [alert runModal];
 }
 
 - (void)clearAction:(id)sender {
     [self.scriptView setString:@""];
-    [self.mainWindow makeFirstResponder:self.scriptView];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    [self setupMainMenu];
     [self buildUI];
-    [NSApp activateIgnoringOtherApps:YES];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
-}
-
-- (void)dealloc {
-    if (apiHandle) dlclose(apiHandle);
 }
 
 @end
@@ -220,7 +140,6 @@ public:
 int main() {
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
-        [app setActivationPolicy:NSApplicationActivationPolicyRegular];
         AppDelegate *delegate = [[AppDelegate alloc] init];
         [app setDelegate:delegate];
         [app run];
@@ -229,10 +148,10 @@ int main() {
 }
 EOF_CODE
 
-# Compile WITH ARC and run
-clang++ -fobjc-arc -framework Cocoa -o opex_executor opex.mm
+# Compile and run
+clang++ -framework Cocoa -o opex_executor opex.mm
 ./opex_executor
 
-# Cleanup after exit
+# Cleanup
 cd /
 rm -rf "$TMPDIR"
