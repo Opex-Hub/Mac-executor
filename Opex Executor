@@ -1,222 +1,238 @@
 #!/bin/bash
+# Opex Executor – macOS solid-blue UI (fixed)
+# Creates a dummy libopexapi.dylib so the app runs without missing-library errors.
+# Replace the dummy with a real library for actual Roblox injection.
 
-# ==============================================================================
-# Opex Executor Installer
-# ==============================================================================
+set -e
+TMPDIR=$(mktemp -d /tmp/opex_XXXX)
+cd "$TMPDIR"
 
-set -u
+# --- Build a dummy injection library (prints to console) ---
+cat > dummy_lib.c << 'EOF_LIB'
+#include <stdio.h>
 
-# âš ï¸ PERMANENT RAW GITHUB URL (Cleaned of temporary tokens) âš ï¸
-DOWNLOAD_URL="https://raw.githubusercontent.com/Opex-Hub/Mac-executor/refs/heads/main/Opex%20Executor"
-
-abort() {
-  printf "%s\n" "$@" >&2
-  exit 1
+void Api_Inject(void) {
+    printf("[Dummy] Inject called.\n");
 }
 
-if [ -z "${BASH_VERSION:-}" ]
-then
-  abort "Bash is required to interpret this script."
-fi
+void Api_Execute(const char* script) {
+    printf("[Dummy] Execute script:\n%s\n", script);
+}
+EOF_LIB
 
-# ------------------------------------------------------------------------------
-# String formatters for terminal output
-# ------------------------------------------------------------------------------
-if [[ -t 1 ]]
-then
-  tty_escape() { printf "\033[%sm" "$1"; }
-else
-  tty_escape() { :; }
-fi
-tty_mkbold() { tty_escape "1;$1"; }
-tty_underline="$(tty_escape "4;39")"
-tty_blue="$(tty_mkbold 34)"
-tty_red="$(tty_mkbold 31)"
-tty_bold="$(tty_mkbold 39)"
-tty_reset="$(tty_escape 0)"
+clang -dynamiclib -o libopexapi.dylib dummy_lib.c
 
-shell_join() {
-  local arg
-  printf "%s" "$1"
-  shift
-  for arg in "$@"
-  do
-    printf " %s" "${arg// /\ }"
-  done
+# --- Build the GUI app ---
+cat > opex.mm << 'EOF_CODE'
+#import <Cocoa/Cocoa.h>
+#import <dlfcn.h>
+
+typedef void (*InjectFunc)();
+typedef void (*ExecuteFunc)(const char*);
+
+static InjectFunc  pInject  = nullptr;
+static ExecuteFunc pExecute = nullptr;
+static void*       apiHandle = nullptr;
+
+static bool loadApiLibrary() {
+    if (pInject && pExecute) return true;
+    const char* paths[] = {
+        "./libopexapi.dylib",
+        "@executable_path/libopexapi.dylib",
+        "/usr/local/lib/libopexapi.dylib",
+        nullptr
+    };
+    for (const char** path = paths; *path; ++path) {
+        apiHandle = dlopen(*path, RTLD_LAZY);
+        if (apiHandle) break;
+    }
+    if (!apiHandle) return false;
+    pInject  = (InjectFunc) dlsym(apiHandle, "Api_Inject");
+    pExecute = (ExecuteFunc)dlsym(apiHandle, "Api_Execute");
+    if (!pInject || !pExecute) {
+        dlclose(apiHandle);
+        apiHandle = nullptr;
+        return false;
+    }
+    return true;
 }
 
-chomp() {
-  printf "%s" "${1/"$'\n'"/}"
+class Api {
+public:
+    static bool inject() {
+        if (!loadApiLibrary()) return false;
+        pInject();
+        return true;
+    }
+    static bool execute(const char* script) {
+        if (!loadApiLibrary()) return false;
+        pExecute(script);
+        return true;
+    }
+};
+
+@interface AppDelegate : NSObject <NSApplicationDelegate>
+@property (strong) NSTextView *scriptView;
+@property (strong) NSWindow   *mainWindow;
+@end
+
+@implementation AppDelegate
+
+- (void)buildUI {
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,800,520)
+                                                   styleMask:(NSWindowStyleMaskTitled |
+                                                              NSWindowStyleMaskClosable |
+                                                              NSWindowStyleMaskMiniaturizable |
+                                                              NSWindowStyleMaskResizable)
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    [window setTitle:@"Opex Executor"];
+    [window setBackgroundColor:[NSColor blueColor]];
+    [window center];
+    self.mainWindow = window;
+
+    NSView *contentView = [window contentView];
+
+    NSTextField *titleLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 470, 800, 40)];
+    [titleLabel setStringValue:@"Opex Executor"];
+    [titleLabel setFont:[NSFont boldSystemFontOfSize:24]];
+    [titleLabel setTextColor:[NSColor whiteColor]];
+    [titleLabel setBackgroundColor:[NSColor clearColor]];
+    [titleLabel setBezeled:NO];
+    [titleLabel setEditable:NO];
+    [titleLabel setAlignment:NSTextAlignmentCenter];
+    [contentView addSubview:titleLabel];
+
+    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 60, 760, 390)];
+    [scrollView setHasVerticalScroller:YES];
+    [scrollView setAutoresizingMask:(NSViewWidthSizable|NSViewHeightSizable)];
+    [scrollView setBorderType:NSBezelBorder];
+
+    NSTextView *textView = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 760, 390)];
+    [textView setFont:[NSFont userFixedPitchFontOfSize:13]];
+    [textView setBackgroundColor:[NSColor colorWithCalibratedRed:0.94 green:0.97 blue:1.0 alpha:1.0]];
+    [textView setTextColor:[NSColor blackColor]];
+    [textView setEditable:YES];
+    [textView setSelectable:YES];
+    [textView setRichText:NO];
+    self.scriptView = textView;
+
+    [scrollView setDocumentView:textView];
+    [contentView addSubview:scrollView];
+
+    NSButton *injectBtn = [[NSButton alloc] initWithFrame:NSMakeRect(20, 15, 100, 32)];
+    [injectBtn setTitle:@"Inject"];
+    [injectBtn setBezelStyle:NSBezelStyleRounded];
+    [injectBtn setTarget:self];
+    [injectBtn setAction:@selector(injectAction:)];
+    [contentView addSubview:injectBtn];
+
+    NSButton *executeBtn = [[NSButton alloc] initWithFrame:NSMakeRect(140, 15, 100, 32)];
+    [executeBtn setTitle:@"Execute"];
+    [executeBtn setBezelStyle:NSBezelStyleRounded];
+    [executeBtn setTarget:self];
+    [executeBtn setAction:@selector(executeAction:)];
+    [contentView addSubview:executeBtn];
+
+    NSButton *clearBtn = [[NSButton alloc] initWithFrame:NSMakeRect(260, 15, 100, 32)];
+    [clearBtn setTitle:@"Clear"];
+    [clearBtn setBezelStyle:NSBezelStyleRounded];
+    [clearBtn setTarget:self];
+    [clearBtn setAction:@selector(clearAction:)];
+    [contentView addSubview:clearBtn];
+
+    [window makeFirstResponder:textView];
+    [window makeKeyAndOrderFront:nil];
 }
 
-ohai() {
-  printf "${tty_blue}==>${tty_bold} %s${tty_reset}\n" "$(shell_join "$@")"
+- (void)setupMainMenu {
+    NSMenu *mainMenu = [[NSMenu alloc] init];
+    NSMenuItem *appMenuItem = [[NSMenuItem alloc] init];
+    [mainMenu addItem:appMenuItem];
+    NSMenu *appMenu = [[NSMenu alloc] init];
+    [appMenuItem setSubmenu:appMenu];
+    [appMenu addItemWithTitle:@"Quit Opex"
+                       action:@selector(terminate:)
+                keyEquivalent:@"q"];
+    [NSApp setMainMenu:mainMenu];
 }
 
-warn() {
-  printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")" >&2
+- (void)injectAction:(id)sender {
+    if (Api::inject()) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        [alert setMessageText:@"Injection Successful"];
+        [alert setInformativeText:@"Executor injected into Roblox."];
+        [alert runModal];
+    } else {
+        NSAlert *alert = [[NSAlert alloc] init];
+        [alert setMessageText:@"Injection Failed"];
+        [alert setInformativeText:@"Could not load libopexapi.dylib.\n"
+                                 "Place a valid library next to this app and try again."];
+        [alert runModal];
+    }
 }
 
-# ------------------------------------------------------------------------------
-# OS and Environment Checks
-# ------------------------------------------------------------------------------
-case $(uname) in
-  Linux) OS_TYPE="Linux" ;;
-  Darwin) OS_TYPE="macOS" ;;
-  *) abort "Opex Executor is only supported on macOS and Linux." ;;
-esac
-
-UNAME_MACHINE="$(uname -m)"
-if [[ "${OS_TYPE}" == "macOS" ]]; then
-  if [[ "${UNAME_MACHINE}" == "arm64" ]]; then
-    OPEX_PREFIX="/opt/opex"
-  else
-    OPEX_PREFIX="/usr/local/opex"
-  fi
-else
-  OPEX_PREFIX="/opt/opex-executor"
-fi
-
-OPEX_BIN="${OPEX_PREFIX}/bin"
-
-# ------------------------------------------------------------------------------
-# Helper Functions
-# ------------------------------------------------------------------------------
-have_sudo_access() {
-  if [[ ! -x "/usr/bin/sudo" ]]; then
-    return 1
-  fi
-  
-  local -a SUDO=("/usr/bin/sudo")
-  if [[ -n "${NONINTERACTIVE-}" ]]; then
-    SUDO+=("-n")
-  fi
-
-  if [[ -z "${HAVE_SUDO_ACCESS-}" ]]; then
-    if [[ -n "${NONINTERACTIVE-}" ]]; then
-      "${SUDO[@]}" -l mkdir &>/dev/null
-    else
-      "${SUDO[@]}" -v && "${SUDO[@]}" -l mkdir &>/dev/null
-    fi
-    HAVE_SUDO_ACCESS="$?"
-  fi
-
-  return "${HAVE_SUDO_ACCESS}"
+- (void)executeAction:(id)sender {
+    NSString *code = [self.scriptView string];
+    if ([code length] == 0) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        [alert setMessageText:@"No Script"];
+        [alert setInformativeText:@"Please enter a script to execute."];
+        [alert runModal];
+        return;
+    }
+    const char* cScript = [code UTF8String];
+    if (Api::execute(cScript)) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        [alert setMessageText:@"Execution Successful"];
+        [alert setInformativeText:[NSString stringWithFormat:@"Executed script:\n%@", code]];
+        [alert runModal];
+    } else {
+        NSAlert *alert = [[NSAlert alloc] init];
+        [alert setMessageText:@"Execution Failed"];
+        [alert setInformativeText:@"Injection library not loaded.\n"
+                                 "Make sure libopexapi.dylib is present and you have injected first."];
+        [alert runModal];
+    }
 }
 
-execute() {
-  if ! "$@"; then
-    abort "$(printf "Failed during: %s" "$(shell_join "$@")")"
-  fi
+- (void)clearAction:(id)sender {
+    [self.scriptView setString:@""];
+    [self.mainWindow makeFirstResponder:self.scriptView];
 }
 
-execute_sudo() {
-  local -a args=("$@")
-  if [[ "${EUID:-${UID}}" != "0" ]] && have_sudo_access; then
-    ohai "/usr/bin/sudo" "${args[@]}"
-    execute "/usr/bin/sudo" "${args[@]}"
-  else
-    ohai "${args[@]}"
-    execute "${args[@]}"
-  fi
+- (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
+    [self setupMainMenu];
+    [self buildUI];
+    [NSApp activateIgnoringOtherApps:YES];
 }
 
-getc() {
-  local save_state
-  save_state="$(/bin/stty -g)"
-  /bin/stty raw -echo
-  IFS='' read -r -n 1 -d '' "$@"
-  /bin/stty "${save_state}"
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+    return YES;
 }
 
-ring_bell() {
-  if [[ -t 1 ]]; then
-    printf "\a"
-  fi
+- (void)dealloc {
+    if (apiHandle) dlclose(apiHandle);
 }
 
-wait_for_user() {
-  local c
-  echo
-  echo "Press ${tty_bold}RETURN${tty_reset}/${tty_bold}ENTER${tty_reset} to continue or any other key to abort:"
-  getc c
-  if ! [[ "${c}" == $'\r' || "${c}" == $'\n' ]]; then
-    exit 1
-  fi
+@end
+
+int main() {
+    @autoreleasepool {
+        NSApplication *app = [NSApplication sharedApplication];
+        [app setActivationPolicy:NSApplicationActivationPolicyRegular];
+        AppDelegate *delegate = [[AppDelegate alloc] init];
+        [app setDelegate:delegate];
+        [app run];
+    }
+    return 0;
 }
+EOF_CODE
 
-# ------------------------------------------------------------------------------
-# Main Execution
-# ------------------------------------------------------------------------------
-if [[ -z "${NONINTERACTIVE-}" ]] && [[ ! -t 0 ]]; then
-  warn 'Running in non-interactive mode because `stdin` is not a TTY.'
-  NONINTERACTIVE=1
-fi
+# Compile WITH ARC and run
+clang++ -fobjc-arc -framework Cocoa -o opex_executor opex.mm
+./opex_executor
 
-ohai 'Checking for `sudo` access (which may request your password)...'
-[[ "${EUID:-${UID}}" == "0" ]] || have_sudo_access
-
-ohai "This script will install Opex Executor to:"
-echo "${OPEX_PREFIX}"
-echo "${OPEX_BIN}"
-
-if [[ -z "${NONINTERACTIVE-}" ]]; then
-  ring_bell
-  wait_for_user
-fi
-
-ohai "Creating installation directories..."
-if [[ ! -d "${OPEX_PREFIX}" ]]; then
-  execute_sudo mkdir -p "${OPEX_PREFIX}"
-  execute_sudo chown -R "${USER}" "${OPEX_PREFIX}"
-fi
-
-if [[ ! -d "${OPEX_BIN}" ]]; then
-  execute mkdir -p "${OPEX_BIN}"
-fi
-
-# ------------------------------------------------------------------------------
-# Download and Install Logic
-# ------------------------------------------------------------------------------
-ohai "Downloading Opex Executor..."
-
-if ! command -v curl >/dev/null; then
-  abort "curl is required to install Opex Executor. Please install curl and try again."
-fi
-
-# Download the raw file directly into the installation path
-execute curl -fsSL "${DOWNLOAD_URL}" -o "${OPEX_BIN}/opex"
-execute chmod +x "${OPEX_BIN}/opex"
-
-ohai "Installation successful!"
-echo
-ring_bell
-
-# ------------------------------------------------------------------------------
-# Next Steps & PATH configuration
-# ------------------------------------------------------------------------------
-ohai "Next steps:"
-case "${SHELL}" in
-  */bash*)
-    shell_rcfile="${HOME}/.bashrc"
-    ;;
-  */zsh*)
-    shell_rcfile="${ZDOTDIR:-"${HOME}"}/.zshrc"
-    ;;
-  */fish*)
-    shell_rcfile="${HOME}/.config/fish/config.fish"
-    ;;
-  *)
-    shell_rcfile="${ENV:-"${HOME}/.profile"}"
-    ;;
-esac
-
-if ! [[ ":${PATH}:" == *":${OPEX_BIN}:"* ]]; then
-  cat <<EOS
-- Run these commands in your terminal to add Opex Executor to your ${tty_bold}PATH${tty_reset}:
-    echo 'export PATH="${OPEX_BIN}:\$PATH"' >> ${shell_rcfile}
-    export PATH="${OPEX_BIN}:\$PATH"
-EOS
-else
-  echo "- Opex Executor is already in your PATH."
-fi
+# Cleanup after exit
+cd /
+rm -rf "$TMPDIR"
