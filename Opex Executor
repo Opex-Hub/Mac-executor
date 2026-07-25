@@ -1,5 +1,5 @@
 #!/bin/bash
-# Opex Executor – custom self-compiling version (Api.inject/execute stubs + GUI)
+# Opex Executor – Blue Edition
 set -e
 TMPDIR=$(mktemp -d /tmp/opex_XXXX)
 cd "$TMPDIR"
@@ -7,38 +7,28 @@ cd "$TMPDIR"
 cat > opex.mm << 'EOF_CODE'
 #import <Cocoa/Cocoa.h>
 
-// ------------------------------------------------------------
-// Custom Api class – replace stubs with your real logic
-// ------------------------------------------------------------
 @interface Api : NSObject
 + (BOOL)inject;
 + (BOOL)executeScript:(NSString *)script;
 @end
 
 @implementation Api
-
 + (BOOL)inject {
-    // TODO: Insert actual injection code here
     NSLog(@"Api.inject() called – stub");
-    return YES;   // return NO on failure
+    return YES;
 }
-
 + (BOOL)executeScript:(NSString *)script {
     if (!script || script.length == 0) return NO;
-    // TODO: Send the script to the injected environment
     NSLog(@"Api.execute() called – stub");
     return YES;
 }
-
 @end
-// ------------------------------------------------------------
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSTextView *scriptView;
 @end
 
 @implementation AppDelegate
-
 - (void)buildUI {
     NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,800,520)
                                                    styleMask:(NSWindowStyleMaskTitled |
@@ -46,35 +36,36 @@ cat > opex.mm << 'EOF_CODE'
                                                               NSWindowStyleMaskMiniaturizable)
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    [window setTitle:@"Opex Executor"];
-    [window setBackgroundColor:[NSColor colorWithCalibratedRed:0.68 green:0.85 blue:0.90 alpha:1.0]];
+    [window setTitle:@"Opex Executor - Blue Edition"];
+    
+    // Changing the background color to a nice deep blue
+    [window setBackgroundColor:[NSColor colorWithCalibratedRed:0.0 green:0.4 blue:0.8 alpha:1.0]];
 
     NSView *contentView = [window contentView];
 
-    // Title
     NSTextField *titleLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(0,470,800,40)];
     [titleLabel setStringValue:@"Opex Executor"];
     [titleLabel setFont:[NSFont boldSystemFontOfSize:24]];
-    [titleLabel setTextColor:[NSColor colorWithCalibratedRed:0.0 green:0.0 blue:0.5 alpha:1.0]];
+    [titleLabel setTextColor:[NSColor whiteColor]]; // White text to stand out on blue
     [titleLabel setBackgroundColor:[NSColor clearColor]];
     [titleLabel setBezeled:NO];
     [titleLabel setEditable:NO];
     [titleLabel setAlignment:NSTextAlignmentCenter];
     [contentView addSubview:titleLabel];
 
-    // Script text view
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(20,60,760,390)];
     [scrollView setHasVerticalScroller:YES];
     [scrollView setBorderType:NSBezelBorder];
 
     NSTextView *textView = [[NSTextView alloc] initWithFrame:NSMakeRect(0,0,760,390)];
-    [textView setFont:[NSFont userFixedPitchFontOfSize:13]];
-    [textView setBackgroundColor:[NSColor colorWithCalibratedRed:0.94 green:0.97 blue:1.0 alpha:1.0]];
+    [textView setFont:[NSFont userFixedPitchFontOfSize:14]];
+    
+    // Giving the text editor a very light icy blue background
+    [textView setBackgroundColor:[NSColor colorWithCalibratedRed:0.9 green:0.95 blue:1.0 alpha:1.0]];
     self.scriptView = textView;
     [scrollView setDocumentView:textView];
     [contentView addSubview:scrollView];
 
-    // Buttons
     NSButton *injectBtn = [[NSButton alloc] initWithFrame:NSMakeRect(20,15,100,32)];
     [injectBtn setTitle:@"Inject"];
     [injectBtn setBezelStyle:NSBezelStyleRounded];
@@ -134,7 +125,6 @@ cat > opex.mm << 'EOF_CODE'
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
 }
-
 @end
 
 int main() {
@@ -148,10 +138,8 @@ int main() {
 }
 EOF_CODE
 
-# Compile and run
 clang++ -framework Cocoa -o opex_executor opex.mm
 ./opex_executor
 
-# Cleanup
 cd /
 rm -rf "$TMPDIR"
