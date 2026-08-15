@@ -3,6 +3,8 @@
 
 #import <Cocoa/Cocoa.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <array>
 #include <unistd.h>
@@ -43,10 +45,41 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
                           "' -o 'expr (void*)dlopen(\"" + dylibPath + "\", 2)' -o 'detach' -o 'quit' 2>&1";
     output += execCommand(lldbCmd);
 
-    // Check if injection succeeded by looking for common error strings
     if (output.find("error:") != std::string::npos ||
         output.find("failed") != std::string::npos ||
         output.find("task_for_pid") != std::string::npos) {
+        return false;
+    }
+    return true;
+}
+
+// ======================================================================
+// Execute Lua via injected dylib (calls execute_lua function)
+// ======================================================================
+static bool executeLuaInjected(const std::string& luaCode, std::string& output) {
+    std::string pidStr = execCommand("pgrep -f Roblox");
+    if (pidStr.empty()) {
+        output = "Roblox is not running (inject first).";
+        return false;
+    }
+    pid_t pid = std::stoi(pidStr);
+
+    // Escape Lua code for embedding in C string
+    std::string escaped;
+    for (char c : luaCode) {
+        if (c == '\\') escaped += "\\\\";
+        else if (c == '"') escaped += "\\\"";
+        else if (c == '\n') escaped += "\\n";
+        else escaped += c;
+    }
+
+    // Build lldb command to call execute_lua(escaped_code)
+    std::string lldbCmd = "lldb -b -o 'process attach --pid " + std::to_string(pid) +
+                          "' -o 'expr (void)execute_lua(\"" + escaped + "\")' -o 'detach' -o 'quit' 2>&1";
+    output += execCommand(lldbCmd);
+
+    if (output.find("error:") != std::string::npos ||
+        output.find("failed") != std::string::npos) {
         return false;
     }
     return true;
@@ -57,6 +90,7 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
 // ======================================================================
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSWindow *window;
+@property (strong) NSTextView *luaTextView;
 @property (strong) NSTextView *logTextView;
 @end
 
@@ -68,7 +102,7 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
 
 - (void)setupUI {
     // Create window
-    self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 500, 300)
+    self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 650, 550)
                                               styleMask:(NSWindowStyleMaskTitled |
                                                          NSWindowStyleMaskClosable |
                                                          NSWindowStyleMaskMiniaturizable |
@@ -78,7 +112,7 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
     [self.window setTitle:@"Opex Executor"];
     [self.window center];
 
-    // Dark vibrancy background
+    // Blue background
     NSVisualEffectView *vibrancy = [[NSVisualEffectView alloc] initWithFrame:self.window.contentView.bounds];
     vibrancy.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     vibrancy.blendingMode = NSVisualEffectBlendingModeBehindWindow;
@@ -86,19 +120,58 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
     vibrancy.material = NSVisualEffectMaterialDark;
     [self.window.contentView addSubview:vibrancy];
 
+    NSView *blueOverlay = [[NSView alloc] initWithFrame:self.window.contentView.bounds];
+    blueOverlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    blueOverlay.wantsLayer = YES;
+    blueOverlay.layer.backgroundColor = [[NSColor colorWithRed:0.1 green:0.2 blue:0.5 alpha:0.7] CGColor];
+    [self.window.contentView addSubview:blueOverlay];
+
     NSView *contentView = self.window.contentView;
     CGFloat margin = 20;
     CGFloat y = margin;
 
-    // Inject button (centered)
-    NSButton *injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin, y, 120, 40)];
+    // Lua code text view (rich textbox)
+    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(margin, y, self.window.contentView.bounds.size.width - 2*margin, 250)];
+    scrollView.hasVerticalScroller = YES;
+    scrollView.autoresizingMask = NSViewWidthSizable;
+    [contentView addSubview:scrollView];
+
+    NSTextView *textView = [[NSTextView alloc] initWithFrame:scrollView.bounds];
+    textView.autoresizingMask = NSViewWidthSizable;
+    textView.font = [NSFont fontWithName:@"Menlo" size:12];
+    textView.textColor = [NSColor whiteColor];
+    textView.backgroundColor = [NSColor colorWithWhite:0.1 alpha:0.9];
+    textView.richText = YES;
+    textView.automaticQuoteSubstitutionEnabled = NO;
+    scrollView.documentView = textView;
+    self.luaTextView = textView;
+    y += 260;
+
+    // Buttons row
+    NSButton *injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin, y, 100, 30)];
     [injectButton setTitle:@"Inject"];
     [injectButton setTarget:self];
     [injectButton setAction:@selector(injectDylib:)];
     [injectButton setBezelStyle:NSBezelStyleRounded];
-    [injectButton setFont:[NSFont systemFontOfSize:16 weight:NSFontWeightSemibold]];
+    [injectButton setButtonType:NSButtonTypeMomentaryPushIn];
     [contentView addSubview:injectButton];
-    y += 50;
+
+    NSButton *executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin + 110, y, 100, 30)];
+    [executeButton setTitle:@"Execute"];
+    [executeButton setTarget:self];
+    [executeButton setAction:@selector(executeLua:)];
+    [executeButton setBezelStyle:NSBezelStyleRounded];
+    [executeButton setButtonType:NSButtonTypeMomentaryPushIn];
+    [contentView addSubview:executeButton];
+
+    NSButton *clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin + 220, y, 100, 30)];
+    [clearButton setTitle:@"Clear"];
+    [clearButton setTarget:self];
+    [clearButton setAction:@selector(clearLua:)];
+    [clearButton setBezelStyle:NSBezelStyleRounded];
+    [clearButton setButtonType:NSButtonTypeMomentaryPushIn];
+    [contentView addSubview:clearButton];
+    y += 40;
 
     // Log area (blue text)
     NSScrollView *logScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(margin, y, self.window.contentView.bounds.size.width - 2*margin, 150)];
@@ -126,6 +199,35 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
     [self.logTextView scrollRangeToVisible:NSMakeRange(newText.length, 0)];
 }
 
+- (void)clearLua:(id)sender {
+    self.luaTextView.string = @"";
+}
+
+- (void)executeLua:(id)sender {
+    NSString *luaCode = self.luaTextView.string;
+    if (luaCode.length == 0) {
+        [self appendLog:@"Error: No Lua code entered."];
+        return;
+    }
+
+    [self appendLog:@"Executing Lua code..."];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        std::string output;
+        bool success = executeLuaInjected([luaCode UTF8String], output);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSString *outputStr = [NSString stringWithUTF8String:output.c_str()];
+            if (outputStr.length > 0) {
+                [self appendLog:outputStr];
+            }
+            if (success) {
+                [self appendLog:@"Lua executed."];
+            } else {
+                [self appendLog:@"Execute failed. Make sure the dylib exports execute_lua and is injected."];
+            }
+        });
+    });
+}
+
 - (void)injectDylib:(id)sender {
     // Hardcoded dylib path: same directory as executable
     NSString *executablePath = [[NSBundle mainBundle] executablePath];
@@ -142,7 +244,6 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
         std::string output;
         bool success = injectDylib([dylibPath UTF8String], output);
         dispatch_async(dispatch_get_main_queue(), ^{
-            // Convert output to NSString and append
             NSString *outputStr = [NSString stringWithUTF8String:output.c_str()];
             if (outputStr.length > 0) {
                 [self appendLog:outputStr];
@@ -150,7 +251,7 @@ static bool injectDylib(const std::string& dylibPath, std::string& output) {
             if (success) {
                 [self appendLog:@"Injection successful."];
             } else {
-                [self appendLog:@"Injection failed. Check above for details."];
+                [self appendLog:@"Injection failed. Check that Roblox is running and SIP is disabled."];
             }
         });
     });
