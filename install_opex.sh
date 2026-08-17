@@ -264,18 +264,23 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    NSLog(@"Opex: applicationDidFinishLaunching started");
+
     NSRect frame = NSMakeRect(0, 0, 700, 520);
-    NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
+    NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
     self.window.title = @"Opex Executor";
     [self.window setFrameAutosaveName:@"OpexExecutorWindow"];
     [self.window center];
 
-    OpexView *view = [[OpexView alloc] initWithFrame:frame];
+    OpexView *view = [[OpexView alloc] initWithFrame:[[self.window contentView] bounds]];
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.window.contentView = view;
 
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
+
+    NSLog(@"Opex: window should now be visible");
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
@@ -328,6 +333,9 @@ clang++ -std=c++17 -fobjc-arc \
     -framework Cocoa
 
 chmod +x "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME"
+
+echo -e "${BLUE}[*] Code-signing app bundle...${NC}"
+codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
 
 echo -e "${BLUE}[*] Installing to $INSTALL_DIR...${NC}"
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
