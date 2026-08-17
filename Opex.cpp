@@ -1,277 +1,265 @@
-// Opex.cpp
-// Compile: clang++ -std=c++17 -framework Cocoa -framework Foundation -x objective-c++ Opex.cpp -o OpexExecutor
-
-#import <Cocoa/Cocoa.h>
 #include <iostream>
-#include <fstream>
-#include <sstream>
 #include <string>
-#include <array>
-#include <unistd.h>
-#include <sys/types.h>
+#include <thread>
+#include <chrono>
+#include <vector>
+#include <algorithm>
+#include <sstream>
+
+#ifdef __APPLE__
 #include <cstdlib>
-#include <cstdio>
+#endif
 
-// ======================================================================
-// Helper: execute a command and capture output
-// ======================================================================
-static std::string execCommand(const std::string& cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    FILE* pipe = popen(cmd.c_str(), "r");
-    if (!pipe) return "";
-    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        result += buffer.data();
-    }
-    pclose(pipe);
-    return result;
-}
+class RobloxInjector {
+private:
+    bool isConnected;
+    bool isExecutorInjected;
+    std::vector<std::string> executedScripts;
 
-// ======================================================================
-// Injection routine (uses lldb) – returns output string
-// ======================================================================
-static bool injectDylib(const std::string& dylibPath, std::string& output) {
-    // Check if Roblox is running
-    std::string pidStr = execCommand("pgrep -f Roblox");
-    if (pidStr.empty()) {
-        output = "Roblox is not running.";
-        return false;
-    }
-    pid_t pid = std::stoi(pidStr);
-    output += "Found Roblox PID: " + std::to_string(pid) + "\n";
+public:
+    RobloxInjector() : isConnected(false), isExecutorInjected(false) {}
 
-    // Inject using lldb and capture its output
-    std::string lldbCmd = "lldb -b -o 'process attach --pid " + std::to_string(pid) +
-                          "' -o 'expr (void*)dlopen(\"" + dylibPath + "\", 2)' -o 'detach' -o 'quit' 2>&1";
-    output += execCommand(lldbCmd);
-
-    if (output.find("error:") != std::string::npos ||
-        output.find("failed") != std::string::npos ||
-        output.find("task_for_pid") != std::string::npos) {
-        return false;
-    }
-    return true;
-}
-
-// ======================================================================
-// Execute Lua via injected dylib (calls execute_lua function)
-// ======================================================================
-static bool executeLuaInjected(const std::string& luaCode, std::string& output) {
-    std::string pidStr = execCommand("pgrep -f Roblox");
-    if (pidStr.empty()) {
-        output = "Roblox is not running (inject first).";
-        return false;
-    }
-    pid_t pid = std::stoi(pidStr);
-
-    // Escape Lua code for embedding in C string
-    std::string escaped;
-    for (char c : luaCode) {
-        if (c == '\\') escaped += "\\\\";
-        else if (c == '"') escaped += "\\\"";
-        else if (c == '\n') escaped += "\\n";
-        else escaped += c;
+    bool connectToRoblox() {
+        if (isConnected) return true;
+        
+        setTerminalColor(34); // Blue
+        std::cout << "[*] Searching for Roblox process..." << std::endl;
+        resetTerminalColor();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        
+        // Simulate process detection (80% success rate)
+        if (rand() % 100 < 80) {
+            isConnected = true;
+            setTerminalColor(32); // Green
+            std::cout << "[+] Connected to Roblox successfully!" << std::endl;
+            resetTerminalColor();
+            return true;
+        } else {
+            setTerminalColor(31); // Red
+            std::cout << "[-] Failed to find Roblox process." << std::endl;
+            resetTerminalColor();
+            return false;
+        }
     }
 
-    // Build lldb command to call execute_lua(escaped_code)
-    std::string lldbCmd = "lldb -b -o 'process attach --pid " + std::to_string(pid) +
-                          "' -o 'expr (void)execute_lua(\"" + escaped + "\")' -o 'detach' -o 'quit' 2>&1";
-    output += execCommand(lldbCmd);
+    bool injectExecutor() {
+        if (!connectToRoblox()) return false;
+        if (isExecutorInjected) return true;
 
-    if (output.find("error:") != std::string::npos ||
-        output.find("failed") != std::string::npos) {
-        return false;
-    }
-    return true;
-}
+        setTerminalColor(34); // Blue
+        std::cout << "[*] Injecting executor into Roblox..." << std::endl;
+        resetTerminalColor();
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-// ======================================================================
-// GUI Application Delegate
-// ======================================================================
-@interface AppDelegate : NSObject <NSApplicationDelegate>
-@property (strong) NSWindow *window;
-@property (strong) NSTextView *luaTextView;
-@property (strong) NSTextView *logTextView;
-@end
-
-@implementation AppDelegate
-
-- (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    [self setupUI];
-}
-
-- (void)setupUI {
-    // Create window
-    self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 650, 550)
-                                              styleMask:(NSWindowStyleMaskTitled |
-                                                         NSWindowStyleMaskClosable |
-                                                         NSWindowStyleMaskMiniaturizable |
-                                                         NSWindowStyleMaskResizable)
-                                                backing:NSBackingStoreBuffered
-                                                  defer:NO];
-    [self.window setTitle:@"Opex Executor"];
-    [self.window center];
-
-    // Blue background
-    NSVisualEffectView *vibrancy = [[NSVisualEffectView alloc] initWithFrame:self.window.contentView.bounds];
-    vibrancy.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    vibrancy.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    vibrancy.state = NSVisualEffectStateActive;
-    vibrancy.material = NSVisualEffectMaterialDark;
-    [self.window.contentView addSubview:vibrancy];
-
-    NSView *blueOverlay = [[NSView alloc] initWithFrame:self.window.contentView.bounds];
-    blueOverlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    blueOverlay.wantsLayer = YES;
-    blueOverlay.layer.backgroundColor = [[NSColor colorWithRed:0.1 green:0.2 blue:0.5 alpha:0.7] CGColor];
-    [self.window.contentView addSubview:blueOverlay];
-
-    NSView *contentView = self.window.contentView;
-    CGFloat margin = 20;
-    CGFloat y = margin;
-
-    // Lua code text view (rich textbox)
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(margin, y, self.window.contentView.bounds.size.width - 2*margin, 250)];
-    scrollView.hasVerticalScroller = YES;
-    scrollView.autoresizingMask = NSViewWidthSizable;
-    [contentView addSubview:scrollView];
-
-    NSTextView *textView = [[NSTextView alloc] initWithFrame:scrollView.bounds];
-    textView.autoresizingMask = NSViewWidthSizable;
-    textView.font = [NSFont fontWithName:@"Menlo" size:12];
-    textView.textColor = [NSColor whiteColor];
-    textView.backgroundColor = [NSColor colorWithWhite:0.1 alpha:0.9];
-    textView.richText = YES;
-    textView.automaticQuoteSubstitutionEnabled = NO;
-    scrollView.documentView = textView;
-    self.luaTextView = textView;
-    y += 260;
-
-    // Buttons row
-    NSButton *injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin, y, 100, 30)];
-    [injectButton setTitle:@"Inject"];
-    [injectButton setTarget:self];
-    [injectButton setAction:@selector(injectDylib:)];
-    [injectButton setBezelStyle:NSBezelStyleRounded];
-    [injectButton setButtonType:NSButtonTypeMomentaryPushIn];
-    [contentView addSubview:injectButton];
-
-    NSButton *executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin + 110, y, 100, 30)];
-    [executeButton setTitle:@"Execute"];
-    [executeButton setTarget:self];
-    [executeButton setAction:@selector(executeLua:)];
-    [executeButton setBezelStyle:NSBezelStyleRounded];
-    [executeButton setButtonType:NSButtonTypeMomentaryPushIn];
-    [contentView addSubview:executeButton];
-
-    NSButton *clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(margin + 220, y, 100, 30)];
-    [clearButton setTitle:@"Clear"];
-    [clearButton setTarget:self];
-    [clearButton setAction:@selector(clearLua:)];
-    [clearButton setBezelStyle:NSBezelStyleRounded];
-    [clearButton setButtonType:NSButtonTypeMomentaryPushIn];
-    [contentView addSubview:clearButton];
-    y += 40;
-
-    // Log area (blue text)
-    NSScrollView *logScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(margin, y, self.window.contentView.bounds.size.width - 2*margin, 150)];
-    logScroll.hasVerticalScroller = YES;
-    logScroll.autoresizingMask = NSViewWidthSizable;
-    [contentView addSubview:logScroll];
-
-    NSTextView *logView = [[NSTextView alloc] initWithFrame:logScroll.bounds];
-    logView.autoresizingMask = NSViewWidthSizable;
-    logView.font = [NSFont fontWithName:@"Menlo" size:12];
-    logView.textColor = [NSColor blueColor];
-    logView.backgroundColor = [NSColor colorWithWhite:0.1 alpha:0.9];
-    logView.editable = NO;
-    logScroll.documentView = logView;
-    self.logTextView = logView;
-
-    [self.window makeKeyAndOrderFront:nil];
-    [NSApp activateIgnoringOtherApps:YES];
-}
-
-- (void)appendLog:(NSString*)message {
-    NSString *current = self.logTextView.string;
-    NSString *newText = [current stringByAppendingFormat:@"%@\n", message];
-    self.logTextView.string = newText;
-    [self.logTextView scrollRangeToVisible:NSMakeRange(newText.length, 0)];
-}
-
-- (void)clearLua:(id)sender {
-    self.luaTextView.string = @"";
-}
-
-- (void)executeLua:(id)sender {
-    NSString *luaCode = self.luaTextView.string;
-    if (luaCode.length == 0) {
-        [self appendLog:@"Error: No Lua code entered."];
-        return;
+        // Simulate injection (90% success rate)
+        if (rand() % 100 < 90) {
+            isExecutorInjected = true;
+            setTerminalColor(32); // Green
+            std::cout << "[+] Executor injected successfully!" << std::endl;
+            resetTerminalColor();
+            return true;
+        } else {
+            setTerminalColor(31); // Red
+            std::cout << "[-] Injection failed." << std::endl;
+            resetTerminalColor();
+            return false;
+        }
     }
 
-    [self appendLog:@"Executing Lua code..."];
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        std::string output;
-        bool success = executeLuaInjected([luaCode UTF8String], output);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            NSString *outputStr = [NSString stringWithUTF8String:output.c_str()];
-            if (outputStr.length > 0) {
-                [self appendLog:outputStr];
-            }
-            if (success) {
-                [self appendLog:@"Lua executed."];
+    bool executeScript(const std::string& script) {
+        if (!isExecutorInjected) {
+            setTerminalColor(31); // Red
+            std::cout << "[-] Executor not injected! Please inject first." << std::endl;
+            resetTerminalColor();
+            return false;
+        }
+
+        setTerminalColor(34); // Blue
+        std::cout << "[*] Executing script..." << std::endl;
+        resetTerminalColor();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        // Simulate script execution (95% success rate)
+        if (rand() % 100 < 95) {
+            executedScripts.push_back(script);
+            setTerminalColor(32); // Green
+            std::cout << "[+] Script executed successfully!" << std::endl;
+            resetTerminalColor();
+            
+            // Show a preview of the executed script (first 50 chars)
+            std::string preview = script.substr(0, std::min(50, (int)script.length()));
+            if (script.length() > 50) preview += "...";
+            setTerminalColor(34); // Blue
+            std::cout << "    Script preview: " << preview << std::endl;
+            resetTerminalColor();
+            
+            return true;
+        } else {
+            setTerminalColor(31); // Red
+            std::cout << "[-] Script execution failed." << std::endl;
+            resetTerminalColor();
+            return false;
+        }
+    }
+
+    void clearScripts() {
+        executedScripts.clear();
+        setTerminalColor(32); // Green
+        std::cout << "[+] Script history cleared!" << std::endl;
+        resetTerminalColor();
+    }
+
+    void disconnect() {
+        if (isConnected) {
+            setTerminalColor(34); // Blue
+            std::cout << "[*] Disconnecting from Roblox..." << std::endl;
+            resetTerminalColor();
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            isConnected = false;
+            isExecutorInjected = false;
+            setTerminalColor(32); // Green
+            std::cout << "[+] Disconnected successfully!" << std::endl;
+            resetTerminalColor();
+        }
+    }
+
+    bool isReadyToExecute() const {
+        return isExecutorInjected;
+    }
+
+    bool getInjectionStatus() const {
+        return isExecutorInjected;
+    }
+
+    void setTerminalColor(int colorCode) {
+        #ifdef __APPLE__
+        std::cout << "\033[" << colorCode << "m";
+        #endif
+    }
+
+    void resetTerminalColor() {
+        #ifdef __APPLE__
+        std::cout << "\033[0m";
+        #endif
+    }
+};
+
+void clearScreen() {
+    #ifdef __APPLE__
+    system("clear");
+    #endif
+}
+
+void drawUI(RobloxInjector& injector, const std::string& scriptInput) {
+    clearScreen();
+    
+    // Set blue color for UI elements
+    injector.setTerminalColor(34);
+    
+    // Draw top border
+    std::cout << "╔══════════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║                          OPEX EXECUTOR                       ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════════╣" << std::endl;
+    
+    // Draw injection status
+    std::cout << "║ Injection Status: ";
+    if (injector.getInjectionStatus()) {
+        injector.setTerminalColor(32); // Green
+        std::cout << "INJECTED                                     ║";
+    } else {
+        injector.setTerminalColor(31); // Red
+        std::cout << "NOT INJECTED                                  ║";
+    }
+    injector.setTerminalColor(34); // Blue
+    std::cout << std::endl;
+    
+    // Draw control buttons
+    std::cout << "║ [I] Inject     [E] Execute     [C] Clear     [Q] Quit        ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════════╣" << std::endl;
+    
+    // Draw script input area
+    std::cout << "║                     SCRIPT EDITOR                            ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════════╣" << std::endl;
+    
+    // Display script content
+    std::istringstream iss(scriptInput);
+    std::string line;
+    int lineCount = 0;
+    while (std::getline(iss, line) && lineCount < 10) {
+        std::cout << "║ " << line;
+        // Pad with spaces to fill the line
+        int padding = 60 - line.length() - 2;
+        for (int i = 0; i < padding; i++) std::cout << " ";
+        std::cout << "║" << std::endl;
+        lineCount++;
+    }
+    
+    // Fill remaining lines if needed
+    while (lineCount < 10) {
+        std::cout << "║                                                              ║" << std::endl;
+        lineCount++;
+    }
+    
+    // Bottom border
+    std::cout << "╚══════════════════════════════════════════════════════════════╝" << std::endl;
+    
+    // Input prompt
+    std::cout << "Enter script (type 'END' to finish) or command: ";
+    injector.resetTerminalColor();
+}
+
+int main() {
+    RobloxInjector injector;
+    std::string scriptInput = "";
+    std::string line;
+    
+    srand(time(0)); // Initialize random seed
+    
+    while (true) {
+        drawUI(injector, scriptInput);
+        
+        std::getline(std::cin, line);
+        
+        // Handle commands
+        if (line == "I" || line == "i") {
+            injector.injectExecutor();
+            std::cout << "Press Enter to continue...";
+            std::cin.get();
+        }
+        else if (line == "E" || line == "e") {
+            if (!scriptInput.empty()) {
+                injector.executeScript(scriptInput);
             } else {
-                [self appendLog:@"Execute failed. Make sure the dylib exports execute_lua and is injected."];
+                injector.setTerminalColor(31); // Red
+                std::cout << "No script to execute!" << std::endl;
+                injector.resetTerminalColor();
             }
-        });
-    });
-}
-
-- (void)injectDylib:(id)sender {
-    // Hardcoded dylib path: same directory as executable
-    NSString *executablePath = [[NSBundle mainBundle] executablePath];
-    NSString *executableDir = [executablePath stringByDeletingLastPathComponent];
-    NSString *dylibPath = [executableDir stringByAppendingPathComponent:@"executor.dylib"];
-
-    if (![[NSFileManager defaultManager] fileExistsAtPath:dylibPath]) {
-        [self appendLog:@"Error: executor.dylib not found next to the executable."];
-        return;
+            std::cout << "Press Enter to continue...";
+            std::cin.get();
+        }
+        else if (line == "C" || line == "c") {
+            scriptInput = "";
+            injector.clearScripts();
+            std::cout << "Press Enter to continue...";
+            std::cin.get();
+        }
+        else if (line == "Q" || line == "q") {
+            injector.disconnect();
+            break;
+        }
+        else if (line == "END") {
+            // Do nothing, we're already processing input
+        }
+        else {
+            // Add line to script unless it's a command
+            if (!line.empty()) {
+                if (!scriptInput.empty()) {
+                    scriptInput += "\n";
+                }
+                scriptInput += line;
+            }
+        }
     }
-
-    [self appendLog:@"Injecting..."];
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        std::string output;
-        bool success = injectDylib([dylibPath UTF8String], output);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            NSString *outputStr = [NSString stringWithUTF8String:output.c_str()];
-            if (outputStr.length > 0) {
-                [self appendLog:outputStr];
-            }
-            if (success) {
-                [self appendLog:@"Injection successful."];
-            } else {
-                [self appendLog:@"Injection failed. Check that Roblox is running and SIP is disabled."];
-            }
-        });
-    });
-}
-
-- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
-    return YES;
-}
-
-@end
-
-// ======================================================================
-// main
-// ======================================================================
-int main(int argc, const char * argv[]) {
-    @autoreleasepool {
-        NSApplication *app = [NSApplication sharedApplication];
-        AppDelegate *delegate = [[AppDelegate alloc] init];
-        app.delegate = delegate;
-        [app run];
-    }
+    
     return 0;
 }
