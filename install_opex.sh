@@ -271,10 +271,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
     self.window.title = @"Opex Executor";
 
-    // Prevent restoration of a previously saved off-screen position
-    [self.window setFrameAutosaveName:nil];
-
-    // Center the window on screen
+    // Center the window on screen (no autosave to avoid off‑screen positions)
     [self.window center];
 
     OpexView *view = [[OpexView alloc] initWithFrame:frame];
@@ -368,7 +365,7 @@ echo -e "${BLUE}[*] Installing to $INSTALL_DIR...${NC}"
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$BUILD_DIR/$APP_NAME.app" "$INSTALL_DIR/"
 
-# Remove any quarantine attribute that might block launching
+# Remove quarantine attributes
 xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
 
 mkdir -p "$(dirname "$BIN_LINK")"
