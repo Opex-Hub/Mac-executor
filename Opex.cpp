@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <sstream>
+#include <ctime>
 
 #ifdef __APPLE__
 #include <cstdlib>
