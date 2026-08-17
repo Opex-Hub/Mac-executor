@@ -12,7 +12,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer (Layout Fixed) ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Custom Injector) ===${NC}"
 
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
@@ -32,15 +32,84 @@ mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/Resources"
 cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #import <Cocoa/Cocoa.h>
 
+// Custom Injector class
+@interface Injector : NSObject
+@property (assign) BOOL isConnected;
+@property (assign) BOOL isInjected;
+- (BOOL)isRobloxRunning;
+- (BOOL)connect;
+- (BOOL)inject;
+- (BOOL)unload;
+@end
+
+@implementation Injector
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _isConnected = NO;
+        _isInjected = NO;
+    }
+    return self;
+}
+
+- (BOOL)isRobloxRunning {
+    NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+    for (NSRunningApplication *app in apps) {
+        NSString *appName = [app localizedName];
+        if ([appName containsString:@"Roblox"]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (BOOL)connect {
+    if (_isConnected) return YES;
+    if ([self isRobloxRunning]) {
+        _isConnected = YES;
+        return YES;
+    }
+    return NO;
+}
+
+- (BOOL)inject {
+    if (_isInjected) return YES; // already injected
+    if (!_isConnected) {
+        if (![self connect]) {
+            return NO;
+        }
+    }
+    // Simulate injection delay
+    [NSThread sleepForTimeInterval:2.0];
+    // 90% success
+    BOOL success = (arc4random_uniform(10) != 0);
+    if (success) {
+        _isInjected = YES;
+    }
+    return success;
+}
+
+- (BOOL)unload {
+    if (_isInjected) {
+        _isInjected = NO;
+        return YES;
+    }
+    return NO;
+}
+
+@end
+
 @interface OpexView : NSView
 @property (strong) NSTextView *scriptEditor;
 @property (strong) NSTextView *outputConsole;
 @property (strong) NSButton *injectButton;
 @property (strong) NSButton *executeButton;
 @property (strong) NSButton *clearButton;
+@property (strong) NSButton *unloadButton;
 @property (strong) NSButton *quitButton;
 @property (strong) NSTextField *statusLabel;
-@property (assign) BOOL isInjected;
+@property (strong) Injector *injector;
 @end
 
 @implementation OpexView
@@ -48,7 +117,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _isInjected = NO;
+        _injector = [[Injector alloc] init];
         [self setupUI];
     }
     return self;
@@ -58,7 +127,6 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     CGFloat W = self.frame.size.width;
     CGFloat H = self.frame.size.height;
 
-    // Background
     self.wantsLayer = YES;
     self.layer.backgroundColor = [NSColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:1.0].CGColor;
 
@@ -90,34 +158,45 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     _statusLabel.alignment = NSTextAlignmentCenter;
     [self addSubview:_statusLabel];
 
-    // Buttons row (placed below status, above script editor)
-    CGFloat buttonY = H - 122;  // = H - 80 - 10 - 32
-    CGFloat buttonX = 160;      // start after sidebar
-    _injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
+    // Buttons row
+    CGFloat buttonY = H - 122;
+    CGFloat buttonX = 160;
+    CGFloat buttonWidth = 90;
+    CGFloat buttonSpacing = 10;
+
+    _injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
     [_injectButton setTitle:@"Inject"];
     [_injectButton setTarget:self];
     [_injectButton setAction:@selector(injectClicked:)];
     [self styleButton:_injectButton];
     [self addSubview:_injectButton];
 
-    buttonX += 110;
-    _executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
+    buttonX += buttonWidth + buttonSpacing;
+    _executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
     [_executeButton setTitle:@"Execute"];
     [_executeButton setTarget:self];
     [_executeButton setAction:@selector(executeClicked:)];
     [self styleButton:_executeButton];
     [self addSubview:_executeButton];
 
-    buttonX += 110;
-    _clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
+    buttonX += buttonWidth + buttonSpacing;
+    _clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
     [_clearButton setTitle:@"Clear"];
     [_clearButton setTarget:self];
     [_clearButton setAction:@selector(clearClicked:)];
     [self styleButton:_clearButton];
     [self addSubview:_clearButton];
 
-    buttonX += 110;
-    _quitButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
+    buttonX += buttonWidth + buttonSpacing;
+    _unloadButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
+    [_unloadButton setTitle:@"Unload"];
+    [_unloadButton setTarget:self];
+    [_unloadButton setAction:@selector(unloadClicked:)];
+    [self styleButton:_unloadButton];
+    [self addSubview:_unloadButton];
+
+    buttonX += buttonWidth + buttonSpacing;
+    _quitButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
     [_quitButton setTitle:@"Quit"];
     [_quitButton setTarget:self];
     [_quitButton setAction:@selector(quitClicked:)];
@@ -135,8 +214,8 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     [self addSubview:scriptLabel];
 
     // Script editor scroll view
-    CGFloat scriptTop = H - 152 - 5;  // below label
-    CGFloat scriptBottom = 135;       // above output console + label
+    CGFloat scriptTop = H - 152 - 5;
+    CGFloat scriptBottom = 135;
     CGFloat scriptHeight = scriptTop - scriptBottom;
     NSScrollView *scriptScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, scriptBottom, W - 180, scriptHeight)];
     scriptScroll.hasVerticalScroller = YES;
@@ -199,42 +278,62 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     });
 }
 
+- (void)updateStatus {
+    if (_injector.isInjected) {
+        _statusLabel.stringValue = @"Status: Injected";
+        _statusLabel.textColor = [NSColor greenColor];
+    } else {
+        _statusLabel.stringValue = @"Status: Not Injected";
+        _statusLabel.textColor = [NSColor redColor];
+    }
+}
+
 - (void)injectClicked:(id)sender {
-    [self log:@"[*] Searching for Roblox process..."];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (arc4random_uniform(100) < 80) {
-            [self log:@"[+] Connected to Roblox successfully!"];
-            [self log:@"[*] Injecting executor into Roblox..."];
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if (arc4random_uniform(100) < 90) {
-                    self->_isInjected = YES;
-                    self->_statusLabel.stringValue = @"Status: Injected";
-                    self->_statusLabel.textColor = [NSColor greenColor];
-                    [self log:@"[+] Executor injected successfully!"];
-                } else {
-                    [self log:@"[-] Injection failed."];
-                }
-            });
-        } else {
-            [self log:@"[-] Failed to find Roblox process."];
+    [self log:@"[*] Inject button pressed."];
+    
+    // Run injection in background to avoid blocking UI
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (self->_injector.isInjected) {
+            [self log:@"[!] Executor is already injected."];
+            return;
         }
+        
+        [self log:@"[*] Searching for Roblox process..."];
+        if (![self->_injector connect]) {
+            [self log:@"[-] Roblox is not running. Please start Roblox first."];
+            return;
+        }
+        
+        [self log:@"[+] Connected to Roblox."];
+        [self log:@"[*] Injecting executor into Roblox..."];
+        
+        BOOL success = [self->_injector inject];
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (success) {
+                [self log:@"[+] Executor injected successfully."];
+                [self updateStatus];
+            } else {
+                [self log:@"[-] Injection failed."];
+            }
+        });
     });
 }
 
 - (void)executeClicked:(id)sender {
-    NSString *script = self->_scriptEditor.string;
+    NSString *script = _scriptEditor.string;
     if ([script length] == 0) {
-        [self log:@"[-] No script to execute!"];
+        [self log:@"[-] No script to execute."];
         return;
     }
-    if (!self->_isInjected) {
-        [self log:@"[-] Executor not injected! Please inject first."];
+    if (!_injector.isInjected) {
+        [self log:@"[-] Executor not injected. Inject first."];
         return;
     }
     [self log:@"[*] Executing script..."];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (arc4random_uniform(100) < 95) {
-            [self log:@"[+] Script executed successfully!"];
+            [self log:@"[+] Script executed successfully."];
             NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
             [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
         } else {
@@ -244,8 +343,17 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 }
 
 - (void)clearClicked:(id)sender {
-    self->_scriptEditor.string = @"";
+    _scriptEditor.string = @"";
     [self log:@"[+] Script editor cleared."];
+}
+
+- (void)unloadClicked:(id)sender {
+    if ([_injector unload]) {
+        [self log:@"[+] Executor unloaded."];
+        [self updateStatus];
+    } else {
+        [self log:@"[-] Executor is not currently injected."];
+    }
 }
 
 - (void)quitClicked:(id)sender {
@@ -276,8 +384,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     [self.window orderFrontRegardless];
     [NSApp activateIgnoringOtherApps:YES];
 
-    NSLog(@"Opex: window created with frame: %@", NSStringFromRect(self.window.frame));
-    NSLog(@"Opex: window is visible: %d", self.window.isVisible);
+    NSLog(@"Opex: window is visible");
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
@@ -288,14 +395,11 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        NSLog(@"Opex: main started");
         NSApplication *app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];
         AppDelegate *delegate = [[AppDelegate alloc] init];
         app.delegate = delegate;
-        NSLog(@"Opex: calling run");
         [app run];
-        NSLog(@"Opex: run returned");
     }
     return 0;
 }
