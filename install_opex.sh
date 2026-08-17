@@ -12,9 +12,8 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer (Fixed) ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Layout Fixed) ===${NC}"
 
-# Check for Xcode CLT
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
     xcode-select --install
@@ -30,7 +29,6 @@ echo -e "${BLUE}[*] Building Opex Executor...${NC}"
 mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/MacOS"
 mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/Resources"
 
-# ---- Objective-C++ source ----
 cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #import <Cocoa/Cocoa.h>
 
@@ -57,12 +55,21 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 }
 
 - (void)setupUI {
-    // Set background color
+    CGFloat W = self.frame.size.width;
+    CGFloat H = self.frame.size.height;
+
+    // Background
     self.wantsLayer = YES;
     self.layer.backgroundColor = [NSColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:1.0].CGColor;
 
-    // Title label
-    NSTextField *title = [[NSTextField alloc] initWithFrame:NSMakeRect(20, self.frame.size.height - 50, self.frame.size.width - 40, 30)];
+    // Sidebar
+    NSView *sidebar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 150, H)];
+    sidebar.wantsLayer = YES;
+    sidebar.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.12 alpha:1.0].CGColor;
+    [self addSubview:sidebar];
+
+    // Title
+    NSTextField *title = [[NSTextField alloc] initWithFrame:NSMakeRect(20, H - 50, W - 40, 30)];
     title.stringValue = @"OPEX EXECUTOR";
     title.font = [NSFont boldSystemFontOfSize:24];
     title.textColor = [NSColor whiteColor];
@@ -73,7 +80,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     [self addSubview:title];
 
     // Status label
-    _statusLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(20, self.frame.size.height - 80, self.frame.size.width - 40, 20)];
+    _statusLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(20, H - 80, W - 40, 20)];
     _statusLabel.stringValue = @"Status: Not Injected";
     _statusLabel.font = [NSFont boldSystemFontOfSize:14];
     _statusLabel.textColor = [NSColor redColor];
@@ -83,43 +90,55 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     _statusLabel.alignment = NSTextAlignmentCenter;
     [self addSubview:_statusLabel];
 
-    // Sidebar (placeholder for script list)
-    NSView *sidebar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 150, self.frame.size.height - 100)];
-    sidebar.wantsLayer = YES;
-    sidebar.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.12 alpha:1.0].CGColor;
-    [self addSubview:sidebar];
-
-    // Buttons
-    _injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, self.frame.size.height - 110, 100, 32)];
+    // Buttons row (placed below status, above script editor)
+    CGFloat buttonY = H - 122;  // = H - 80 - 10 - 32
+    CGFloat buttonX = 160;      // start after sidebar
+    _injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
     [_injectButton setTitle:@"Inject"];
     [_injectButton setTarget:self];
     [_injectButton setAction:@selector(injectClicked:)];
     [self styleButton:_injectButton];
     [self addSubview:_injectButton];
 
-    _executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(130, self.frame.size.height - 110, 100, 32)];
+    buttonX += 110;
+    _executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
     [_executeButton setTitle:@"Execute"];
     [_executeButton setTarget:self];
     [_executeButton setAction:@selector(executeClicked:)];
     [self styleButton:_executeButton];
     [self addSubview:_executeButton];
 
-    _clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(240, self.frame.size.height - 110, 100, 32)];
+    buttonX += 110;
+    _clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
     [_clearButton setTitle:@"Clear"];
     [_clearButton setTarget:self];
     [_clearButton setAction:@selector(clearClicked:)];
     [self styleButton:_clearButton];
     [self addSubview:_clearButton];
 
-    _quitButton = [[NSButton alloc] initWithFrame:NSMakeRect(350, self.frame.size.height - 110, 100, 32)];
+    buttonX += 110;
+    _quitButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, 100, 32)];
     [_quitButton setTitle:@"Quit"];
     [_quitButton setTarget:self];
     [_quitButton setAction:@selector(quitClicked:)];
     [self styleButton:_quitButton];
     [self addSubview:_quitButton];
 
+    // Script editor label
+    NSTextField *scriptLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, H - 152, 150, 20)];
+    scriptLabel.stringValue = @"Script Editor";
+    scriptLabel.font = [NSFont boldSystemFontOfSize:12];
+    scriptLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    scriptLabel.backgroundColor = [NSColor clearColor];
+    scriptLabel.bordered = NO;
+    scriptLabel.editable = NO;
+    [self addSubview:scriptLabel];
+
     // Script editor scroll view
-    NSScrollView *scriptScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, 150, self.frame.size.width - 180, 200)];
+    CGFloat scriptTop = H - 152 - 5;  // below label
+    CGFloat scriptBottom = 135;       // above output console + label
+    CGFloat scriptHeight = scriptTop - scriptBottom;
+    NSScrollView *scriptScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, scriptBottom, W - 180, scriptHeight)];
     scriptScroll.hasVerticalScroller = YES;
     scriptScroll.hasHorizontalScroller = NO;
     scriptScroll.borderType = NSBezelBorder;
@@ -134,8 +153,18 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     scriptScroll.documentView = _scriptEditor;
     [self addSubview:scriptScroll];
 
+    // Output console label
+    NSTextField *outputLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, 105, 150, 20)];
+    outputLabel.stringValue = @"Output Console";
+    outputLabel.font = [NSFont boldSystemFontOfSize:12];
+    outputLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    outputLabel.backgroundColor = [NSColor clearColor];
+    outputLabel.bordered = NO;
+    outputLabel.editable = NO;
+    [self addSubview:outputLabel];
+
     // Output console scroll view
-    NSScrollView *outputScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, 20, self.frame.size.width - 180, 120)];
+    NSScrollView *outputScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, 20, W - 180, 80)];
     outputScroll.hasVerticalScroller = YES;
     outputScroll.hasHorizontalScroller = NO;
     outputScroll.borderType = NSBezelBorder;
@@ -149,25 +178,6 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     _outputConsole.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     outputScroll.documentView = _outputConsole;
     [self addSubview:outputScroll];
-
-    // Labels
-    NSTextField *scriptLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, 355, 150, 20)];
-    scriptLabel.stringValue = @"Script Editor";
-    scriptLabel.font = [NSFont boldSystemFontOfSize:12];
-    scriptLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
-    scriptLabel.backgroundColor = [NSColor clearColor];
-    scriptLabel.bordered = NO;
-    scriptLabel.editable = NO;
-    [self addSubview:scriptLabel];
-
-    NSTextField *outputLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, 145, 150, 20)];
-    outputLabel.stringValue = @"Output Console";
-    outputLabel.font = [NSFont boldSystemFontOfSize:12];
-    outputLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
-    outputLabel.backgroundColor = [NSColor clearColor];
-    outputLabel.bordered = NO;
-    outputLabel.editable = NO;
-    [self addSubview:outputLabel];
 }
 
 - (void)styleButton:(NSButton *)button {
@@ -291,7 +301,6 @@ int main(int argc, const char * argv[]) {
 }
 EOF
 
-# ---- Info.plist ----
 cat > "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -321,7 +330,6 @@ cat > "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-# ---- Compile ----
 clang++ -std=c++17 -fobjc-arc \
     "$BUILD_DIR/OpexApp.mm" \
     -o "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" \
@@ -329,15 +337,12 @@ clang++ -std=c++17 -fobjc-arc \
 
 chmod +x "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME"
 
-# ---- Code sign ----
 codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
 
-# ---- Install ----
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$BUILD_DIR/$APP_NAME.app" "$INSTALL_DIR/"
 xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
 
-# ---- Symlink ----
 mkdir -p "$(dirname "$BIN_LINK")"
 rm -f "$BIN_LINK"
 ln -sf "$INSTALL_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" "$BIN_LINK"
