@@ -270,17 +270,29 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
     self.window.title = @"Opex Executor";
-    [self.window setFrameAutosaveName:@"OpexExecutorWindow"];
+
+    // Prevent restoration of a previously saved off-screen position
+    [self.window setFrameAutosaveName:nil];
+
+    // Center the window on screen
     [self.window center];
 
     OpexView *view = [[OpexView alloc] initWithFrame:frame];
     view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.window.contentView = view;
 
-    // Force the window to the front and make it visible
+    // Bring to front and activate
     [self.window makeKeyAndOrderFront:nil];
     [self.window orderFrontRegardless];
     [NSApp activateIgnoringOtherApps:YES];
+
+    // Fallback: try again after 1 second in case it was hidden
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSLog(@"Opex: re-ordering window front");
+        [self.window makeKeyAndOrderFront:nil];
+        [self.window orderFrontRegardless];
+        [NSApp activateIgnoringOtherApps:YES];
+    });
 
     NSLog(@"Opex: window should now be visible");
 }
@@ -293,11 +305,14 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
+        NSLog(@"Opex: main started");
         NSApplication *app = [NSApplication sharedApplication];
         [app setActivationPolicy:NSApplicationActivationPolicyRegular];
         AppDelegate *delegate = [[AppDelegate alloc] init];
         app.delegate = delegate;
+        NSLog(@"Opex: calling run");
         [app run];
+        NSLog(@"Opex: run returned");
     }
     return 0;
 }
@@ -352,6 +367,9 @@ plutil -lint "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" >/dev/null || { echo
 echo -e "${BLUE}[*] Installing to $INSTALL_DIR...${NC}"
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$BUILD_DIR/$APP_NAME.app" "$INSTALL_DIR/"
+
+# Remove any quarantine attribute that might block launching
+xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
 
 mkdir -p "$(dirname "$BIN_LINK")"
 rm -f "$BIN_LINK"
