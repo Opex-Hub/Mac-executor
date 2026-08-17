@@ -271,7 +271,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
     self.window.title = @"Opex Executor";
 
-    // Center the window on screen (no autosave to avoid off‑screen positions)
+    // Center the window on screen
     [self.window center];
 
     OpexView *view = [[OpexView alloc] initWithFrame:frame];
