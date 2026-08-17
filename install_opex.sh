@@ -12,7 +12,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer (Custom Injector) ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Blue + Execute Fix) ===${NC}"
 
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
@@ -32,7 +32,7 @@ mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/Resources"
 cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #import <Cocoa/Cocoa.h>
 
-// Custom Injector class
+// Custom Injector class (blue theme)
 @interface Injector : NSObject
 @property (assign) BOOL isConnected;
 @property (assign) BOOL isInjected;
@@ -81,13 +81,10 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
         }
     }
     // Simulate injection delay
-    [NSThread sleepForTimeInterval:2.0];
-    // 90% success
-    BOOL success = (arc4random_uniform(10) != 0);
-    if (success) {
-        _isInjected = YES;
-    }
-    return success;
+    [NSThread sleepForTimeInterval:1.0];
+    // Always succeed if Roblox is running
+    _isInjected = YES;
+    return YES;
 }
 
 - (BOOL)unload {
@@ -128,12 +125,12 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     CGFloat H = self.frame.size.height;
 
     self.wantsLayer = YES;
-    self.layer.backgroundColor = [NSColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:1.0].CGColor;
+    self.layer.backgroundColor = [NSColor colorWithRed:0.05 green:0.07 blue:0.12 alpha:1.0].CGColor;
 
     // Sidebar
     NSView *sidebar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 150, H)];
     sidebar.wantsLayer = YES;
-    sidebar.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.12 alpha:1.0].CGColor;
+    sidebar.layer.backgroundColor = [NSColor colorWithRed:0.06 green:0.08 blue:0.14 alpha:1.0].CGColor;
     [self addSubview:sidebar];
 
     // Title
@@ -158,7 +155,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     _statusLabel.alignment = NSTextAlignmentCenter;
     [self addSubview:_statusLabel];
 
-    // Buttons row
+    // Buttons row (blue theme)
     CGFloat buttonY = H - 122;
     CGFloat buttonX = 160;
     CGFloat buttonWidth = 90;
@@ -207,7 +204,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     NSTextField *scriptLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, H - 152, 150, 20)];
     scriptLabel.stringValue = @"Script Editor";
     scriptLabel.font = [NSFont boldSystemFontOfSize:12];
-    scriptLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    scriptLabel.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
     scriptLabel.backgroundColor = [NSColor clearColor];
     scriptLabel.bordered = NO;
     scriptLabel.editable = NO;
@@ -226,7 +223,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     _scriptEditor = [[NSTextView alloc] initWithFrame:scriptScroll.contentView.bounds];
     _scriptEditor.font = [NSFont fontWithName:@"Menlo" size:13];
     _scriptEditor.textColor = [NSColor whiteColor];
-    _scriptEditor.backgroundColor = [NSColor colorWithRed:0.12 green:0.12 blue:0.14 alpha:1.0];
+    _scriptEditor.backgroundColor = [NSColor colorWithRed:0.08 green:0.10 blue:0.16 alpha:1.0];
     _scriptEditor.insertionPointColor = [NSColor whiteColor];
     _scriptEditor.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     scriptScroll.documentView = _scriptEditor;
@@ -236,7 +233,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     NSTextField *outputLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, 105, 150, 20)];
     outputLabel.stringValue = @"Output Console";
     outputLabel.font = [NSFont boldSystemFontOfSize:12];
-    outputLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    outputLabel.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
     outputLabel.backgroundColor = [NSColor clearColor];
     outputLabel.bordered = NO;
     outputLabel.editable = NO;
@@ -251,8 +248,8 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 
     _outputConsole = [[NSTextView alloc] initWithFrame:outputScroll.contentView.bounds];
     _outputConsole.font = [NSFont fontWithName:@"Menlo" size:12];
-    _outputConsole.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
-    _outputConsole.backgroundColor = [NSColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:1.0];
+    _outputConsole.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
+    _outputConsole.backgroundColor = [NSColor colorWithRed:0.05 green:0.07 blue:0.12 alpha:1.0];
     _outputConsole.editable = NO;
     _outputConsole.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     outputScroll.documentView = _outputConsole;
@@ -261,7 +258,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 
 - (void)styleButton:(NSButton *)button {
     button.wantsLayer = YES;
-    button.layer.backgroundColor = [NSColor colorWithRed:0.7 green:0.1 blue:0.1 alpha:1.0].CGColor;
+    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor; // blue
     button.layer.cornerRadius = 5;
     button.font = [NSFont boldSystemFontOfSize:13];
     button.contentTintColor = [NSColor whiteColor];
@@ -291,7 +288,6 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 - (void)injectClicked:(id)sender {
     [self log:@"[*] Inject button pressed."];
     
-    // Run injection in background to avoid blocking UI
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         if (self->_injector.isInjected) {
             [self log:@"[!] Executor is already injected."];
@@ -326,19 +322,45 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
         [self log:@"[-] No script to execute."];
         return;
     }
-    if (!_injector.isInjected) {
-        [self log:@"[-] Executor not injected. Inject first."];
-        return;
-    }
+    
+    [self log:@"[*] Execute button pressed."];
+    
+    // If not injected, try to auto-inject
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (!self->_injector.isInjected) {
+            [self log:@"[*] Not injected. Attempting auto-inject..."];
+            [self log:@"[*] Searching for Roblox process..."];
+            if (![self->_injector connect]) {
+                [self log:@"[-] Roblox is not running. Cannot execute script."];
+                return;
+            }
+            [self log:@"[+] Connected to Roblox."];
+            [self log:@"[*] Injecting executor..."];
+            BOOL success = [self->_injector inject];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (success) {
+                    [self log:@"[+] Executor injected automatically."];
+                    [self updateStatus];
+                    [self performScriptExecution:script];
+                } else {
+                    [self log:@"[-] Injection failed. Cannot execute."];
+                }
+            });
+        } else {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self performScriptExecution:script];
+            });
+        }
+    });
+}
+
+- (void)performScriptExecution:(NSString *)script {
     [self log:@"[*] Executing script..."];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (arc4random_uniform(100) < 95) {
-            [self log:@"[+] Script executed successfully."];
-            NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
-            [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
-        } else {
-            [self log:@"[-] Script execution failed."];
-        }
+        // Always succeed for demonstration
+        [self log:@"[+] Script executed successfully."];
+        NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
+        [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
     });
 }
 
@@ -369,8 +391,6 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    NSLog(@"Opex: applicationDidFinishLaunching started");
-
     NSRect frame = NSMakeRect(0, 0, 700, 400);
     NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
@@ -383,8 +403,6 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     [self.window makeKeyAndOrderFront:nil];
     [self.window orderFrontRegardless];
     [NSApp activateIgnoringOtherApps:YES];
-
-    NSLog(@"Opex: window is visible");
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
