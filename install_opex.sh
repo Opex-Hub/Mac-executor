@@ -277,7 +277,9 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.window.contentView = view;
 
+    // Force the window to the front and make it visible
     [self.window makeKeyAndOrderFront:nil];
+    [self.window orderFrontRegardless];
     [NSApp activateIgnoringOtherApps:YES];
 
     NSLog(@"Opex: window should now be visible");
@@ -314,6 +316,8 @@ cat > "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" <<EOF
     <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>
     <string>Opex Executor</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
