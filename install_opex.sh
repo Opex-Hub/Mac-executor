@@ -357,4 +357,3 @@ echo -e "${GREEN}[+] Opex Executor installed successfully!${NC}"
 echo -e "${BLUE}[*] Launching Opex Executor...${NC}"
 
 open "$INSTALL_DIR/$APP_NAME.app"
-EOF
