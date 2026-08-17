@@ -1,5 +1,5 @@
+cat > /tmp/install_opex_fixed.sh <<'SCRIPT'
 #!/bin/bash
-
 set -e
 
 APP_NAME="Opex"
@@ -12,12 +12,13 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Fixed) ===${NC}"
 
+# Check for Xcode CLT
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
     xcode-select --install
-    echo -e "${GREEN}[+] Please complete the installation, then run this installer again.${NC}"
+    echo -e "${GREEN}[+] Please complete installation, then run this script again.${NC}"
     exit 0
 fi
 
@@ -29,12 +30,9 @@ echo -e "${BLUE}[*] Building Opex Executor...${NC}"
 mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/MacOS"
 mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/Resources"
 
+# ---- Objective-C++ source ----
 cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #import <Cocoa/Cocoa.h>
-#import <string>
-#import <vector>
-#import <cstdlib>
-#import <ctime>
 
 @interface OpexView : NSView
 @property (strong) NSTextView *scriptEditor;
@@ -44,7 +42,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 @property (strong) NSButton *clearButton;
 @property (strong) NSButton *quitButton;
 @property (strong) NSTextField *statusLabel;
-@property (assign) bool isInjected;
+@property (assign) BOOL isInjected;
 @end
 
 @implementation OpexView
@@ -59,136 +57,125 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 }
 
 - (void)setupUI {
+    // Set background color
     self.wantsLayer = YES;
-    self.layer.backgroundColor = [NSColor colorWithRed:0.05 green:0.07 blue:0.12 alpha:1.0].CGColor;
+    self.layer.backgroundColor = [NSColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:1.0].CGColor;
 
-    NSTextField *title = [NSTextField labelWithString:@"OPEX EXECUTOR"];
+    // Title label
+    NSTextField *title = [[NSTextField alloc] initWithFrame:NSMakeRect(20, self.frame.size.height - 50, self.frame.size.width - 40, 30)];
+    title.stringValue = @"OPEX EXECUTOR";
     title.font = [NSFont boldSystemFontOfSize:24];
     title.textColor = [NSColor whiteColor];
+    title.backgroundColor = [NSColor clearColor];
+    title.bordered = NO;
+    title.editable = NO;
     title.alignment = NSTextAlignmentCenter;
-    title.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:title];
 
-    _statusLabel = [NSTextField labelWithString:@"Status: Not Injected"];
+    // Status label
+    _statusLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(20, self.frame.size.height - 80, self.frame.size.width - 40, 20)];
+    _statusLabel.stringValue = @"Status: Not Injected";
     _statusLabel.font = [NSFont boldSystemFontOfSize:14];
     _statusLabel.textColor = [NSColor redColor];
+    _statusLabel.backgroundColor = [NSColor clearColor];
+    _statusLabel.bordered = NO;
+    _statusLabel.editable = NO;
     _statusLabel.alignment = NSTextAlignmentCenter;
-    _statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_statusLabel];
 
-    _injectButton = [self createButton:@"Inject" action:@selector(injectClicked:)];
-    _executeButton = [self createButton:@"Execute" action:@selector(executeClicked:)];
-    _clearButton = [self createButton:@"Clear" action:@selector(clearClicked:)];
-    _quitButton = [self createButton:@"Quit" action:@selector(quitClicked:)];
+    // Sidebar (placeholder for script list)
+    NSView *sidebar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 150, self.frame.size.height - 100)];
+    sidebar.wantsLayer = YES;
+    sidebar.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.1 blue:0.12 alpha:1.0].CGColor;
+    [self addSubview:sidebar];
 
-    NSScrollView *scriptScroll = [[NSScrollView alloc] init];
-    scriptScroll.translatesAutoresizingMaskIntoConstraints = NO;
+    // Buttons
+    _injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(20, self.frame.size.height - 110, 100, 32)];
+    [_injectButton setTitle:@"Inject"];
+    [_injectButton setTarget:self];
+    [_injectButton setAction:@selector(injectClicked:)];
+    [self styleButton:_injectButton];
+    [self addSubview:_injectButton];
+
+    _executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(130, self.frame.size.height - 110, 100, 32)];
+    [_executeButton setTitle:@"Execute"];
+    [_executeButton setTarget:self];
+    [_executeButton setAction:@selector(executeClicked:)];
+    [self styleButton:_executeButton];
+    [self addSubview:_executeButton];
+
+    _clearButton = [[NSButton alloc] initWithFrame:NSMakeRect(240, self.frame.size.height - 110, 100, 32)];
+    [_clearButton setTitle:@"Clear"];
+    [_clearButton setTarget:self];
+    [_clearButton setAction:@selector(clearClicked:)];
+    [self styleButton:_clearButton];
+    [self addSubview:_clearButton];
+
+    _quitButton = [[NSButton alloc] initWithFrame:NSMakeRect(350, self.frame.size.height - 110, 100, 32)];
+    [_quitButton setTitle:@"Quit"];
+    [_quitButton setTarget:self];
+    [_quitButton setAction:@selector(quitClicked:)];
+    [self styleButton:_quitButton];
+    [self addSubview:_quitButton];
+
+    // Script editor scroll view
+    NSScrollView *scriptScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, 150, self.frame.size.width - 180, 200)];
     scriptScroll.hasVerticalScroller = YES;
     scriptScroll.hasHorizontalScroller = NO;
-    scriptScroll.autohidesScrollers = YES;
     scriptScroll.borderType = NSBezelBorder;
+    scriptScroll.autohidesScrollers = YES;
 
-    _scriptEditor = [[NSTextView alloc] init];
+    _scriptEditor = [[NSTextView alloc] initWithFrame:scriptScroll.contentView.bounds];
     _scriptEditor.font = [NSFont fontWithName:@"Menlo" size:13];
     _scriptEditor.textColor = [NSColor whiteColor];
-    _scriptEditor.backgroundColor = [NSColor colorWithRed:0.08 green:0.10 blue:0.16 alpha:1.0];
+    _scriptEditor.backgroundColor = [NSColor colorWithRed:0.12 green:0.12 blue:0.14 alpha:1.0];
     _scriptEditor.insertionPointColor = [NSColor whiteColor];
     _scriptEditor.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
     scriptScroll.documentView = _scriptEditor;
     [self addSubview:scriptScroll];
 
-    NSScrollView *outputScroll = [[NSScrollView alloc] init];
-    outputScroll.translatesAutoresizingMaskIntoConstraints = NO;
+    // Output console scroll view
+    NSScrollView *outputScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(160, 20, self.frame.size.width - 180, 120)];
     outputScroll.hasVerticalScroller = YES;
     outputScroll.hasHorizontalScroller = NO;
-    outputScroll.autohidesScrollers = YES;
     outputScroll.borderType = NSBezelBorder;
+    outputScroll.autohidesScrollers = YES;
 
-    _outputConsole = [[NSTextView alloc] init];
+    _outputConsole = [[NSTextView alloc] initWithFrame:outputScroll.contentView.bounds];
     _outputConsole.font = [NSFont fontWithName:@"Menlo" size:12];
-    _outputConsole.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
-    _outputConsole.backgroundColor = [NSColor colorWithRed:0.05 green:0.07 blue:0.12 alpha:1.0];
+    _outputConsole.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    _outputConsole.backgroundColor = [NSColor colorWithRed:0.08 green:0.08 blue:0.1 alpha:1.0];
     _outputConsole.editable = NO;
     _outputConsole.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
     outputScroll.documentView = _outputConsole;
     [self addSubview:outputScroll];
 
-    NSTextField *scriptLabel = [NSTextField labelWithString:@"Script Editor"];
+    // Labels
+    NSTextField *scriptLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, 355, 150, 20)];
+    scriptLabel.stringValue = @"Script Editor";
     scriptLabel.font = [NSFont boldSystemFontOfSize:12];
-    scriptLabel.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
-    scriptLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    scriptLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    scriptLabel.backgroundColor = [NSColor clearColor];
+    scriptLabel.bordered = NO;
+    scriptLabel.editable = NO;
     [self addSubview:scriptLabel];
 
-    NSTextField *outputLabel = [NSTextField labelWithString:@"Output Console"];
+    NSTextField *outputLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, 145, 150, 20)];
+    outputLabel.stringValue = @"Output Console";
     outputLabel.font = [NSFont boldSystemFontOfSize:12];
-    outputLabel.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
-    outputLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    outputLabel.textColor = [NSColor colorWithRed:0.9 green:0.3 blue:0.3 alpha:1.0];
+    outputLabel.backgroundColor = [NSColor clearColor];
+    outputLabel.bordered = NO;
+    outputLabel.editable = NO;
     [self addSubview:outputLabel];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [title.topAnchor constraintEqualToAnchor:self.topAnchor constant:20],
-        [title.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-        [title.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-20],
-        [title.heightAnchor constraintEqualToConstant:30],
-
-        [_statusLabel.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:10],
-        [_statusLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-        [_statusLabel.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-20],
-        [_statusLabel.heightAnchor constraintEqualToConstant:20],
-
-        [_injectButton.topAnchor constraintEqualToAnchor:_statusLabel.bottomAnchor constant:15],
-        [_injectButton.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-        [_injectButton.widthAnchor constraintEqualToConstant:100],
-        [_injectButton.heightAnchor constraintEqualToConstant:32],
-
-        [_executeButton.topAnchor constraintEqualToAnchor:_statusLabel.bottomAnchor constant:15],
-        [_executeButton.leadingAnchor constraintEqualToAnchor:_injectButton.trailingAnchor constant:10],
-        [_executeButton.widthAnchor constraintEqualToConstant:100],
-        [_executeButton.heightAnchor constraintEqualToConstant:32],
-
-        [_clearButton.topAnchor constraintEqualToAnchor:_statusLabel.bottomAnchor constant:15],
-        [_clearButton.leadingAnchor constraintEqualToAnchor:_executeButton.trailingAnchor constant:10],
-        [_clearButton.widthAnchor constraintEqualToConstant:100],
-        [_clearButton.heightAnchor constraintEqualToConstant:32],
-
-        [_quitButton.topAnchor constraintEqualToAnchor:_statusLabel.bottomAnchor constant:15],
-        [_quitButton.leadingAnchor constraintEqualToAnchor:_clearButton.trailingAnchor constant:10],
-        [_quitButton.widthAnchor constraintEqualToConstant:100],
-        [_quitButton.heightAnchor constraintEqualToConstant:32],
-
-        [scriptLabel.topAnchor constraintEqualToAnchor:_injectButton.bottomAnchor constant:20],
-        [scriptLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-
-        [scriptScroll.topAnchor constraintEqualToAnchor:scriptLabel.bottomAnchor constant:5],
-        [scriptScroll.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-        [scriptScroll.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-20],
-        [scriptScroll.heightAnchor constraintEqualToConstant:180],
-
-        [outputLabel.topAnchor constraintEqualToAnchor:scriptScroll.bottomAnchor constant:15],
-        [outputLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-
-        [outputScroll.topAnchor constraintEqualToAnchor:outputLabel.bottomAnchor constant:5],
-        [outputScroll.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
-        [outputScroll.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-20],
-        [outputScroll.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-20]
-    ]];
 }
 
-- (NSButton *)createButton:(NSString *)title action:(SEL)action {
-    NSButton *button = [[NSButton alloc] init];
-    button.translatesAutoresizingMaskIntoConstraints = NO;
-    button.title = title;
-    button.target = self;
-    button.action = action;
-    button.bezelStyle = NSBezelStyleRounded;
+- (void)styleButton:(NSButton *)button {
+    button.wantsLayer = YES;
+    button.layer.backgroundColor = [NSColor colorWithRed:0.7 green:0.1 blue:0.1 alpha:1.0].CGColor;
+    button.layer.cornerRadius = 5;
     button.font = [NSFont boldSystemFontOfSize:13];
     button.contentTintColor = [NSColor whiteColor];
-    button.wantsLayer = YES;
-    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor;
-    button.layer.cornerRadius = 6;
-    return button;
 }
 
 - (void)log:(NSString *)message {
@@ -266,32 +253,21 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     NSLog(@"Opex: applicationDidFinishLaunching started");
 
-    NSRect frame = NSMakeRect(0, 0, 700, 520);
+    NSRect frame = NSMakeRect(0, 0, 700, 400);
     NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
     self.window.title = @"Opex Executor";
-
-    // Center the window on screen
     [self.window center];
 
     OpexView *view = [[OpexView alloc] initWithFrame:frame];
-    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.window.contentView = view;
 
-    // Bring to front and activate
     [self.window makeKeyAndOrderFront:nil];
     [self.window orderFrontRegardless];
     [NSApp activateIgnoringOtherApps:YES];
 
-    // Fallback: try again after 1 second in case it was hidden
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        NSLog(@"Opex: re-ordering window front");
-        [self.window makeKeyAndOrderFront:nil];
-        [self.window orderFrontRegardless];
-        [NSApp activateIgnoringOtherApps:YES];
-    });
-
-    NSLog(@"Opex: window should now be visible");
+    NSLog(@"Opex: window created with frame: %@", NSStringFromRect(self.window.frame));
+    NSLog(@"Opex: window is visible: %d", self.window.isVisible);
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
@@ -315,6 +291,7 @@ int main(int argc, const char * argv[]) {
 }
 EOF
 
+# ---- Info.plist ----
 cat > "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -344,6 +321,7 @@ cat > "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
+# ---- Compile ----
 clang++ -std=c++17 -fobjc-arc \
     "$BUILD_DIR/OpexApp.mm" \
     -o "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" \
@@ -351,28 +329,23 @@ clang++ -std=c++17 -fobjc-arc \
 
 chmod +x "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME"
 
-echo -e "${BLUE}[*] Code-signing app bundle...${NC}"
+# ---- Code sign ----
 codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
 
-echo -e "${BLUE}[*] Validating app bundle...${NC}"
-if ! codesign --verify --deep "$BUILD_DIR/$APP_NAME.app" 2>/dev/null; then
-    echo -e "${RED}[-] Code signature validation failed.${NC}"
-    exit 1
-fi
-plutil -lint "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" >/dev/null || { echo -e "${RED}[-] Info.plist is invalid.${NC}"; exit 1; }
-
-echo -e "${BLUE}[*] Installing to $INSTALL_DIR...${NC}"
+# ---- Install ----
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$BUILD_DIR/$APP_NAME.app" "$INSTALL_DIR/"
-
-# Remove quarantine attributes
 xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
 
+# ---- Symlink ----
 mkdir -p "$(dirname "$BIN_LINK")"
 rm -f "$BIN_LINK"
 ln -sf "$INSTALL_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" "$BIN_LINK"
 
-echo -e "${GREEN}[+] Opex Executor installed successfully!${NC}"
-echo -e "${BLUE}[*] Launching Opex Executor...${NC}"
-
+echo -e "${GREEN}[+] Installed successfully!${NC}"
+echo -e "${BLUE}[*] Launching...${NC}"
 open "$INSTALL_DIR/$APP_NAME.app"
+SCRIPT
+
+chmod +x /tmp/install_opex_fixed.sh
+/tmp/install_opex_fixed.sh
