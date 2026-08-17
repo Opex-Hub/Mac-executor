@@ -273,7 +273,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     [self.window setFrameAutosaveName:@"OpexExecutorWindow"];
     [self.window center];
 
-    OpexView *view = [[OpexView alloc] initWithFrame:[[self.window contentView] bounds]];
+    OpexView *view = [[OpexView alloc] initWithFrame:frame];
     view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.window.contentView = view;
 
@@ -292,6 +292,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
+        [app setActivationPolicy:NSApplicationActivationPolicyRegular];
         AppDelegate *delegate = [[AppDelegate alloc] init];
         app.delegate = delegate;
         [app run];
@@ -337,14 +338,23 @@ chmod +x "$BUILD_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME"
 echo -e "${BLUE}[*] Code-signing app bundle...${NC}"
 codesign --force --deep --sign - "$BUILD_DIR/$APP_NAME.app"
 
+echo -e "${BLUE}[*] Validating app bundle...${NC}"
+if ! codesign --verify --deep "$BUILD_DIR/$APP_NAME.app" 2>/dev/null; then
+    echo -e "${RED}[-] Code signature validation failed.${NC}"
+    exit 1
+fi
+plutil -lint "$BUILD_DIR/$APP_NAME.app/Contents/Info.plist" >/dev/null || { echo -e "${RED}[-] Info.plist is invalid.${NC}"; exit 1; }
+
 echo -e "${BLUE}[*] Installing to $INSTALL_DIR...${NC}"
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
 cp -R "$BUILD_DIR/$APP_NAME.app" "$INSTALL_DIR/"
 
 mkdir -p "$(dirname "$BIN_LINK")"
+rm -f "$BIN_LINK"
 ln -sf "$INSTALL_DIR/$APP_NAME.app/Contents/MacOS/$APP_NAME" "$BIN_LINK"
 
 echo -e "${GREEN}[+] Opex Executor installed successfully!${NC}"
 echo -e "${BLUE}[*] Launching Opex Executor...${NC}"
 
 open "$INSTALL_DIR/$APP_NAME.app"
+EOF
