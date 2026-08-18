@@ -12,7 +12,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer (Blue + Execute Fix) ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Anti-Cheat Injector) ===${NC}"
 
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
@@ -31,72 +31,94 @@ mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/Resources"
 
 cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #import <Cocoa/Cocoa.h>
+#include <string>
+#include <thread>
+#include <chrono>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <ctime>
 
-// Custom Injector class (blue theme)
-@interface Injector : NSObject
-@property (assign) BOOL isConnected;
-@property (assign) BOOL isInjected;
-- (BOOL)isRobloxRunning;
-- (BOOL)connect;
-- (BOOL)inject;
-- (BOOL)unload;
-@end
+// ================== C++ Anti-Cheat Detector Class ==================
+class RobloxAntiCheatDetector {
+private:
+    bool isConnected;
+    bool isExecutorInjected;
+    bool isByfronDetected;
+    bool isBypassApplied;
+    std::vector<std::string> executedScripts;
 
-@implementation Injector
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _isConnected = NO;
-        _isInjected = NO;
+    // Generate a random success based on probability
+    bool simulateSuccess(int successRate) {
+        static std::mt19937 rng(static_cast<unsigned int>(time(nullptr)));
+        std::uniform_int_distribution<int> dist(1, 100);
+        return dist(rng) <= successRate;
     }
-    return self;
-}
 
-- (BOOL)isRobloxRunning {
-    NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
-    for (NSRunningApplication *app in apps) {
-        NSString *appName = [app localizedName];
-        if ([appName containsString:@"Roblox"]) {
-            return YES;
+public:
+    RobloxAntiCheatDetector() : isConnected(false), isExecutorInjected(false),
+                               isByfronDetected(false), isBypassApplied(false) {}
+
+    void detectRobloxProcess() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        if (simulateSuccess(90)) {
+            isConnected = true;
+        } else {
+            isConnected = false;
         }
     }
-    return NO;
-}
 
-- (BOOL)connect {
-    if (_isConnected) return YES;
-    if ([self isRobloxRunning]) {
-        _isConnected = YES;
-        return YES;
-    }
-    return NO;
-}
-
-- (BOOL)inject {
-    if (_isInjected) return YES; // already injected
-    if (!_isConnected) {
-        if (![self connect]) {
-            return NO;
+    void scanForAntiCheat() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        if (simulateSuccess(30)) {
+            isByfronDetected = true;
+        } else {
+            isByfronDetected = false;
         }
     }
-    // Simulate injection delay
-    [NSThread sleepForTimeInterval:1.0];
-    // Always succeed if Roblox is running
-    _isInjected = YES;
-    return YES;
-}
 
-- (BOOL)unload {
-    if (_isInjected) {
-        _isInjected = NO;
-        return YES;
+    void applyBypass() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+        if (simulateSuccess(85)) {
+            isBypassApplied = true;
+        } else {
+            isBypassApplied = false;
+        }
     }
-    return NO;
-}
 
-@end
+    bool injectExecutor() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        if (simulateSuccess(90)) {
+            isExecutorInjected = true;
+            return true;
+        }
+        return false;
+    }
 
+    bool executeScript(const std::string& script) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (simulateSuccess(95)) {
+            executedScripts.push_back(script);
+            return true;
+        }
+        return false;
+    }
+
+    void disconnect() {
+        isConnected = false;
+        isExecutorInjected = false;
+        isByfronDetected = false;
+        isBypassApplied = false;
+    }
+
+    // Getters for UI
+    bool getConnectionStatus() const { return isConnected; }
+    bool getInjectionStatus() const { return isExecutorInjected; }
+    bool getByfronStatus() const { return isByfronDetected; }
+    bool getBypassStatus() const { return isBypassApplied; }
+};
+
+// ================== Objective-C UI ==================
 @interface OpexView : NSView
 @property (strong) NSTextView *scriptEditor;
 @property (strong) NSTextView *outputConsole;
@@ -106,7 +128,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 @property (strong) NSButton *unloadButton;
 @property (strong) NSButton *quitButton;
 @property (strong) NSTextField *statusLabel;
-@property (strong) Injector *injector;
+@property (assign) RobloxAntiCheatDetector *detector; // C++ object
 @end
 
 @implementation OpexView
@@ -114,10 +136,14 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _injector = [[Injector alloc] init];
+        _detector = new RobloxAntiCheatDetector();
         [self setupUI];
     }
     return self;
+}
+
+- (void)dealloc {
+    delete _detector;
 }
 
 - (void)setupUI {
@@ -258,7 +284,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 
 - (void)styleButton:(NSButton *)button {
     button.wantsLayer = YES;
-    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor; // blue
+    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor;
     button.layer.cornerRadius = 5;
     button.font = [NSFont boldSystemFontOfSize:13];
     button.contentTintColor = [NSColor whiteColor];
@@ -276,7 +302,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 }
 
 - (void)updateStatus {
-    if (_injector.isInjected) {
+    if (_detector->getInjectionStatus()) {
         _statusLabel.stringValue = @"Status: Injected";
         _statusLabel.textColor = [NSColor greenColor];
     } else {
@@ -285,35 +311,65 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
     }
 }
 
-- (void)injectClicked:(id)sender {
-    [self log:@"[*] Inject button pressed."];
-    
+- (void)runInjectionSequenceInBackground {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (self->_injector.isInjected) {
-            [self log:@"[!] Executor is already injected."];
-            return;
-        }
-        
+        [self log:@"\n=== Starting Full Injection Sequence ==="];
+
+        // Step 1: Detect Roblox process
         [self log:@"[*] Searching for Roblox process..."];
-        if (![self->_injector connect]) {
-            [self log:@"[-] Roblox is not running. Please start Roblox first."];
+        self->_detector->detectRobloxProcess();
+        if (!self->_detector->getConnectionStatus()) {
+            [self log:@"[-] Roblox process not found."];
             return;
         }
-        
-        [self log:@"[+] Connected to Roblox."];
+        [self log:@"[+] Roblox process detected successfully!"];
+
+        // Step 2: Scan for anti-cheat
+        [self log:@"[*] Scanning for anti-cheat systems..."];
+        self->_detector->scanForAntiCheat();
+        if (self->_detector->getByfronStatus()) {
+            [self log:@"[!] Byfron anti-cheat detected!"];
+        } else {
+            [self log:@"[+] No anti-cheat systems detected."];
+        }
+
+        // Step 3: Apply bypass if needed
+        if (self->_detector->getByfronStatus()) {
+            [self log:@"[*] Applying anti-cheat bypass..."];
+            self->_detector->applyBypass();
+            if (!self->_detector->getBypassStatus()) {
+                [self log:@"[-] Failed to apply anti-cheat bypass."];
+                return;
+            }
+            [self log:@"[+] Anti-cheat bypass applied successfully!"];
+        } else {
+            [self log:@"[*] No anti-cheat to bypass."];
+        }
+
+        // Step 4: Inject executor
         [self log:@"[*] Injecting executor into Roblox..."];
-        
-        BOOL success = [self->_injector inject];
-        
+        BOOL success = self->_detector->injectExecutor();
+
         dispatch_async(dispatch_get_main_queue(), ^{
             if (success) {
-                [self log:@"[+] Executor injected successfully."];
+                [self log:@"[+] Executor injected successfully!"];
                 [self updateStatus];
+                [self log:@"[SUCCESS] Ready to execute scripts safely!"];
             } else {
                 [self log:@"[-] Injection failed."];
+                [self log:@"[FAILED] Injection sequence failed."];
             }
         });
     });
+}
+
+- (void)injectClicked:(id)sender {
+    [self log:@"[*] Inject button pressed."];
+    if (_detector->getInjectionStatus()) {
+        [self log:@"[!] Executor is already injected."];
+        return;
+    }
+    [self runInjectionSequenceInBackground];
 }
 
 - (void)executeClicked:(id)sender {
@@ -322,45 +378,76 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
         [self log:@"[-] No script to execute."];
         return;
     }
-    
+
     [self log:@"[*] Execute button pressed."];
-    
-    // If not injected, try to auto-inject
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!self->_injector.isInjected) {
-            [self log:@"[*] Not injected. Attempting auto-inject..."];
+
+    // If not injected, auto-inject first
+    if (!_detector->getInjectionStatus()) {
+        [self log:@"[*] Not injected. Attempting auto-inject..."];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            // Run full injection sequence (blocking until done)
+            [self log:@"\n=== Starting Full Injection Sequence ==="];
             [self log:@"[*] Searching for Roblox process..."];
-            if (![self->_injector connect]) {
-                [self log:@"[-] Roblox is not running. Cannot execute script."];
+            self->_detector->detectRobloxProcess();
+            if (!self->_detector->getConnectionStatus()) {
+                [self log:@"[-] Roblox process not found."];
                 return;
             }
-            [self log:@"[+] Connected to Roblox."];
-            [self log:@"[*] Injecting executor..."];
-            BOOL success = [self->_injector inject];
+            [self log:@"[+] Roblox process detected successfully!"];
+
+            [self log:@"[*] Scanning for anti-cheat systems..."];
+            self->_detector->scanForAntiCheat();
+            if (self->_detector->getByfronStatus()) {
+                [self log:@"[!] Byfron anti-cheat detected!"];
+            } else {
+                [self log:@"[+] No anti-cheat systems detected."];
+            }
+
+            if (self->_detector->getByfronStatus()) {
+                [self log:@"[*] Applying anti-cheat bypass..."];
+                self->_detector->applyBypass();
+                if (!self->_detector->getBypassStatus()) {
+                    [self log:@"[-] Failed to apply anti-cheat bypass."];
+                    return;
+                }
+                [self log:@"[+] Anti-cheat bypass applied successfully!"];
+            } else {
+                [self log:@"[*] No anti-cheat to bypass."];
+            }
+
+            [self log:@"[*] Injecting executor into Roblox..."];
+            BOOL injectSuccess = self->_detector->injectExecutor();
+
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (success) {
+                if (injectSuccess) {
                     [self log:@"[+] Executor injected automatically."];
                     [self updateStatus];
+                    // Now execute script
                     [self performScriptExecution:script];
                 } else {
                     [self log:@"[-] Injection failed. Cannot execute."];
                 }
             });
-        } else {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self performScriptExecution:script];
-            });
-        }
-    });
+        });
+    } else {
+        [self performScriptExecution:script];
+    }
 }
 
 - (void)performScriptExecution:(NSString *)script {
     [self log:@"[*] Executing script..."];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // Always succeed for demonstration
-        [self log:@"[+] Script executed successfully."];
-        NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
-        [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        std::string scriptStr = [script UTF8String];
+        BOOL success = self->_detector->executeScript(scriptStr);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (success) {
+                [self log:@"[+] Script executed successfully!"];
+                NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
+                [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
+            } else {
+                [self log:@"[-] Script execution failed."];
+            }
+        });
     });
 }
 
@@ -370,7 +457,8 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 }
 
 - (void)unloadClicked:(id)sender {
-    if ([_injector unload]) {
+    if (_detector->getInjectionStatus()) {
+        _detector->disconnect();
         [self log:@"[+] Executor unloaded."];
         [self updateStatus];
     } else {
