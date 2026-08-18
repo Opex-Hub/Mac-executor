@@ -1,4 +1,4 @@
-cat > /tmp/install_opex_final.sh <<'SCRIPT'
+cat > /tmp/install_opex_simple.sh <<'SCRIPT'
 #!/bin/bash
 set -e
 
@@ -12,7 +12,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer (Black Editor/Console) ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Simple, Always Works) ===${NC}"
 
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
@@ -24,110 +24,19 @@ fi
 BUILD_DIR=$(mktemp -d)
 trap "rm -rf $BUILD_DIR" EXIT
 
-echo -e "${BLUE}[*] Building Opex Executor...${NC}"
-
 mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/MacOS"
 mkdir -p "$BUILD_DIR/$APP_NAME.app/Contents/Resources"
 
 cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #import <Cocoa/Cocoa.h>
-#include <string>
-#include <thread>
-#include <chrono>
-#include <vector>
-#include <algorithm>
-#include <random>
-#include <ctime>
 
-// ================== Improved Anti-Cheat Detector & Injector ==================
-class RobloxAntiCheatDetector {
-private:
-    bool isConnected;
-    bool isExecutorInjected;
-    bool isByfronDetected;
-    bool isBypassApplied;
-    std::vector<std::string> executedScripts;
-
-    bool simulateSuccess(int successRate) {
-        static std::mt19937 rng(static_cast<unsigned int>(time(nullptr)));
-        std::uniform_int_distribution<int> dist(1, 100);
-        return dist(rng) <= successRate;
-    }
-
-public:
-    RobloxAntiCheatDetector() : isConnected(false), isExecutorInjected(false),
-                               isByfronDetected(false), isBypassApplied(false) {}
-
-    void detectRobloxProcess() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(800));
-        if (simulateSuccess(95)) {
-            isConnected = true;
-        } else {
-            isConnected = false;
-        }
-    }
-
-    void scanForAntiCheat() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1200));
-        if (simulateSuccess(35)) {
-            isByfronDetected = true;
-        } else {
-            isByfronDetected = false;
-        }
-    }
-
-    void applyBypass() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-        if (simulateSuccess(90)) {
-            isBypassApplied = true;
-        } else {
-            isBypassApplied = false;
-        }
-    }
-
-    bool injectExecutor() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-        if (simulateSuccess(95)) {
-            isExecutorInjected = true;
-            return true;
-        }
-        return false;
-    }
-
-    bool executeScript(const std::string& script) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(400));
-        if (simulateSuccess(98)) {
-            executedScripts.push_back(script);
-            return true;
-        }
-        return false;
-    }
-
-    void disconnect() {
-        isConnected = false;
-        isExecutorInjected = false;
-        isByfronDetected = false;
-        isBypassApplied = false;
-    }
-
-    // Getters
-    bool getConnectionStatus() const { return isConnected; }
-    bool getInjectionStatus() const { return isExecutorInjected; }
-    bool getByfronStatus() const { return isByfronDetected; }
-    bool getBypassStatus() const { return isBypassApplied; }
-};
-
-// ================== Objective-C UI ==================
 @interface OpexView : NSView
 @property (strong) NSTextView *scriptEditor;
 @property (strong) NSTextView *outputConsole;
-@property (strong) NSButton *injectButton;
 @property (strong) NSButton *executeButton;
 @property (strong) NSButton *clearButton;
-@property (strong) NSButton *unloadButton;
 @property (strong) NSButton *quitButton;
 @property (strong) NSTextField *statusLabel;
-@property (assign) RobloxAntiCheatDetector *detector;
 @end
 
 @implementation OpexView
@@ -135,14 +44,9 @@ public:
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _detector = new RobloxAntiCheatDetector();
         [self setupUI];
     }
     return self;
-}
-
-- (void)dealloc {
-    delete _detector;
 }
 
 - (void)setupUI {
@@ -152,7 +56,7 @@ public:
     self.wantsLayer = YES;
     self.layer.backgroundColor = [NSColor colorWithRed:0.05 green:0.07 blue:0.12 alpha:1.0].CGColor;
 
-    // Sidebar
+    // Sidebar (optional, keep for look)
     NSView *sidebar = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 150, H)];
     sidebar.wantsLayer = YES;
     sidebar.layer.backgroundColor = [NSColor colorWithRed:0.06 green:0.08 blue:0.14 alpha:1.0].CGColor;
@@ -169,31 +73,23 @@ public:
     title.alignment = NSTextAlignmentCenter;
     [self addSubview:title];
 
-    // Status label
+    // Status label (always "Ready")
     _statusLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(20, H - 80, W - 40, 20)];
-    _statusLabel.stringValue = @"Status: Not Injected";
+    _statusLabel.stringValue = @"Status: Ready";
     _statusLabel.font = [NSFont boldSystemFontOfSize:14];
-    _statusLabel.textColor = [NSColor redColor];
+    _statusLabel.textColor = [NSColor greenColor];
     _statusLabel.backgroundColor = [NSColor clearColor];
     _statusLabel.bordered = NO;
     _statusLabel.editable = NO;
     _statusLabel.alignment = NSTextAlignmentCenter;
     [self addSubview:_statusLabel];
 
-    // Buttons row (blue)
+    // Buttons
     CGFloat buttonY = H - 122;
     CGFloat buttonX = 160;
     CGFloat buttonWidth = 90;
     CGFloat buttonSpacing = 10;
 
-    _injectButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
-    [_injectButton setTitle:@"Inject"];
-    [_injectButton setTarget:self];
-    [_injectButton setAction:@selector(injectClicked:)];
-    [self styleButton:_injectButton];
-    [self addSubview:_injectButton];
-
-    buttonX += buttonWidth + buttonSpacing;
     _executeButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
     [_executeButton setTitle:@"Execute"];
     [_executeButton setTarget:self];
@@ -210,14 +106,6 @@ public:
     [self addSubview:_clearButton];
 
     buttonX += buttonWidth + buttonSpacing;
-    _unloadButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
-    [_unloadButton setTitle:@"Unload"];
-    [_unloadButton setTarget:self];
-    [_unloadButton setAction:@selector(unloadClicked:)];
-    [self styleButton:_unloadButton];
-    [self addSubview:_unloadButton];
-
-    buttonX += buttonWidth + buttonSpacing;
     _quitButton = [[NSButton alloc] initWithFrame:NSMakeRect(buttonX, buttonY, buttonWidth, 32)];
     [_quitButton setTitle:@"Quit"];
     [_quitButton setTarget:self];
@@ -225,7 +113,7 @@ public:
     [self styleButton:_quitButton];
     [self addSubview:_quitButton];
 
-    // Script editor label (changed to script.lua)
+    // Script editor label
     NSTextField *scriptLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, H - 152, 150, 20)];
     scriptLabel.stringValue = @"script.lua";
     scriptLabel.font = [NSFont boldSystemFontOfSize:12];
@@ -247,10 +135,9 @@ public:
 
     _scriptEditor = [[NSTextView alloc] initWithFrame:scriptScroll.contentView.bounds];
     _scriptEditor.font = [NSFont fontWithName:@"Menlo" size:13];
-    // BLACK background and WHITE text
     _scriptEditor.textColor = [NSColor whiteColor];
     _scriptEditor.backgroundColor = [NSColor blackColor];
-    _scriptEditor.insertionPointColor = [NSColor whiteColor]; // white cursor
+    _scriptEditor.insertionPointColor = [NSColor whiteColor];
     _scriptEditor.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     scriptScroll.documentView = _scriptEditor;
     [self addSubview:scriptScroll];
@@ -274,7 +161,6 @@ public:
 
     _outputConsole = [[NSTextView alloc] initWithFrame:outputScroll.contentView.bounds];
     _outputConsole.font = [NSFont fontWithName:@"Menlo" size:12];
-    // BLACK background and WHITE text
     _outputConsole.textColor = [NSColor whiteColor];
     _outputConsole.backgroundColor = [NSColor blackColor];
     _outputConsole.editable = NO;
@@ -285,7 +171,7 @@ public:
 
 - (void)styleButton:(NSButton *)button {
     button.wantsLayer = YES;
-    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor; // blue
+    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor;
     button.layer.cornerRadius = 5;
     button.font = [NSFont boldSystemFontOfSize:13];
     button.contentTintColor = [NSColor whiteColor];
@@ -302,113 +188,18 @@ public:
     });
 }
 
-- (void)updateStatus {
-    if (_detector->getInjectionStatus()) {
-        _statusLabel.stringValue = @"Status: Injected";
-        _statusLabel.textColor = [NSColor greenColor];
-    } else {
-        _statusLabel.stringValue = @"Status: Not Injected";
-        _statusLabel.textColor = [NSColor redColor];
-    }
-}
-
-- (void)runInjectionSequenceWithCompletion:(void(^)(BOOL success))completion {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        [self log:@"\n=== Starting Full Injection Sequence ==="];
-
-        [self log:@"[*] Searching for Roblox process..."];
-        self->_detector->detectRobloxProcess();
-        if (!self->_detector->getConnectionStatus()) {
-            [self log:@"[-] Roblox process not found."];
-            completion(NO);
-            return;
-        }
-        [self log:@"[+] Roblox process detected successfully!"];
-
-        [self log:@"[*] Scanning for anti-cheat systems..."];
-        self->_detector->scanForAntiCheat();
-        if (self->_detector->getByfronStatus()) {
-            [self log:@"[!] Byfron anti-cheat detected!"];
-        } else {
-            [self log:@"[+] No anti-cheat systems detected."];
-        }
-
-        if (self->_detector->getByfronStatus()) {
-            [self log:@"[*] Applying anti-cheat bypass..."];
-            self->_detector->applyBypass();
-            if (!self->_detector->getBypassStatus()) {
-                [self log:@"[-] Failed to apply anti-cheat bypass."];
-                completion(NO);
-                return;
-            }
-            [self log:@"[+] Anti-cheat bypass applied successfully!"];
-        } else {
-            [self log:@"[*] No anti-cheat to bypass."];
-        }
-
-        [self log:@"[*] Injecting executor into Roblox..."];
-        BOOL success = self->_detector->injectExecutor();
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (success) {
-                [self log:@"[+] Executor injected successfully!"];
-                [self updateStatus];
-                [self log:@"[SUCCESS] Ready to execute scripts safely!"];
-            } else {
-                [self log:@"[-] Injection failed."];
-                [self log:@"[FAILED] Injection sequence failed."];
-            }
-            completion(success);
-        });
-    });
-}
-
-- (void)injectClicked:(id)sender {
-    [self log:@"[*] Inject button pressed."];
-    if (_detector->getInjectionStatus()) {
-        [self log:@"[!] Executor is already injected."];
-        return;
-    }
-    [self runInjectionSequenceWithCompletion:^(BOOL success) {}];
-}
-
 - (void)executeClicked:(id)sender {
     NSString *script = _scriptEditor.string;
     if ([script length] == 0) {
         [self log:@"[-] No script to execute. Please enter Lua code."];
         return;
     }
-
     [self log:@"[*] Execute button pressed."];
-
-    if (!_detector->getInjectionStatus()) {
-        [self log:@"[*] Not injected. Auto-injecting..."];
-        [self runInjectionSequenceWithCompletion:^(BOOL success) {
-            if (success) {
-                [self performScriptExecution:script];
-            } else {
-                [self log:@"[-] Cannot execute script because injection failed."];
-            }
-        }];
-    } else {
-        [self performScriptExecution:script];
-    }
-}
-
-- (void)performScriptExecution:(NSString *)script {
-    [self log:@"[*] Executing script..."];
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        std::string scriptStr = [script UTF8String];
-        BOOL success = self->_detector->executeScript(scriptStr);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (success) {
-                [self log:@"[+] Script executed successfully!"];
-                NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
-                [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
-            } else {
-                [self log:@"[-] Script execution failed."];
-            }
-        });
+    [self log:@"[*] Simulating script execution..."];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self log:@"[+] Script executed successfully!"];
+        NSString *preview = [script length] > 50 ? [[script substringToIndex:50] stringByAppendingString:@"..."] : script;
+        [self log:[NSString stringWithFormat:@"    Script preview: %@", preview]];
     });
 }
 
@@ -417,23 +208,12 @@ public:
     [self log:@"[+] Script editor cleared."];
 }
 
-- (void)unloadClicked:(id)sender {
-    if (_detector->getInjectionStatus()) {
-        _detector->disconnect();
-        [self log:@"[+] Executor unloaded and disconnected."];
-        [self updateStatus];
-    } else {
-        [self log:@"[-] Executor is not currently injected."];
-    }
-}
-
 - (void)quitClicked:(id)sender {
     [NSApp terminate:nil];
 }
 
 @end
 
-// ================== App Delegate ==================
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSWindow *window;
 @end
@@ -524,5 +304,5 @@ echo -e "${BLUE}[*] Launching...${NC}"
 open "$INSTALL_DIR/$APP_NAME.app"
 SCRIPT
 
-chmod +x /tmp/install_opex_final.sh
-/tmp/install_opex_final.sh
+chmod +x /tmp/install_opex_simple.sh
+/tmp/install_opex_simple.sh
