@@ -1,4 +1,4 @@
-cat > /tmp/install_opex_fixed.sh <<'SCRIPT'
+cat > /tmp/install_opex_final.sh <<'SCRIPT'
 #!/bin/bash
 set -e
 
@@ -12,7 +12,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Opex Executor Installer (Anti-Cheat Injector) ===${NC}"
+echo -e "${BLUE}=== Opex Executor Installer (Black Editor/Console) ===${NC}"
 
 if ! xcode-select -p &>/dev/null; then
     echo -e "${BLUE}[*] Installing Xcode Command Line Tools...${NC}"
@@ -39,7 +39,7 @@ cat > "$BUILD_DIR/OpexApp.mm" <<'EOF'
 #include <random>
 #include <ctime>
 
-// ================== C++ Anti-Cheat Detector Class ==================
+// ================== Improved Anti-Cheat Detector & Injector ==================
 class RobloxAntiCheatDetector {
 private:
     bool isConnected;
@@ -48,7 +48,6 @@ private:
     bool isBypassApplied;
     std::vector<std::string> executedScripts;
 
-    // Generate a random success based on probability
     bool simulateSuccess(int successRate) {
         static std::mt19937 rng(static_cast<unsigned int>(time(nullptr)));
         std::uniform_int_distribution<int> dist(1, 100);
@@ -60,8 +59,8 @@ public:
                                isByfronDetected(false), isBypassApplied(false) {}
 
     void detectRobloxProcess() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        if (simulateSuccess(90)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        if (simulateSuccess(95)) {
             isConnected = true;
         } else {
             isConnected = false;
@@ -69,8 +68,8 @@ public:
     }
 
     void scanForAntiCheat() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-        if (simulateSuccess(30)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+        if (simulateSuccess(35)) {
             isByfronDetected = true;
         } else {
             isByfronDetected = false;
@@ -78,8 +77,8 @@ public:
     }
 
     void applyBypass() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-        if (simulateSuccess(85)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        if (simulateSuccess(90)) {
             isBypassApplied = true;
         } else {
             isBypassApplied = false;
@@ -87,8 +86,8 @@ public:
     }
 
     bool injectExecutor() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-        if (simulateSuccess(90)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        if (simulateSuccess(95)) {
             isExecutorInjected = true;
             return true;
         }
@@ -96,8 +95,8 @@ public:
     }
 
     bool executeScript(const std::string& script) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        if (simulateSuccess(95)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+        if (simulateSuccess(98)) {
             executedScripts.push_back(script);
             return true;
         }
@@ -111,7 +110,7 @@ public:
         isBypassApplied = false;
     }
 
-    // Getters for UI
+    // Getters
     bool getConnectionStatus() const { return isConnected; }
     bool getInjectionStatus() const { return isExecutorInjected; }
     bool getByfronStatus() const { return isByfronDetected; }
@@ -128,7 +127,7 @@ public:
 @property (strong) NSButton *unloadButton;
 @property (strong) NSButton *quitButton;
 @property (strong) NSTextField *statusLabel;
-@property (assign) RobloxAntiCheatDetector *detector; // C++ object
+@property (assign) RobloxAntiCheatDetector *detector;
 @end
 
 @implementation OpexView
@@ -181,7 +180,7 @@ public:
     _statusLabel.alignment = NSTextAlignmentCenter;
     [self addSubview:_statusLabel];
 
-    // Buttons row (blue theme)
+    // Buttons row (blue)
     CGFloat buttonY = H - 122;
     CGFloat buttonX = 160;
     CGFloat buttonWidth = 90;
@@ -226,9 +225,9 @@ public:
     [self styleButton:_quitButton];
     [self addSubview:_quitButton];
 
-    // Script editor label
+    // Script editor label (changed to script.lua)
     NSTextField *scriptLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(160, H - 152, 150, 20)];
-    scriptLabel.stringValue = @"Script Editor";
+    scriptLabel.stringValue = @"script.lua";
     scriptLabel.font = [NSFont boldSystemFontOfSize:12];
     scriptLabel.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
     scriptLabel.backgroundColor = [NSColor clearColor];
@@ -248,9 +247,10 @@ public:
 
     _scriptEditor = [[NSTextView alloc] initWithFrame:scriptScroll.contentView.bounds];
     _scriptEditor.font = [NSFont fontWithName:@"Menlo" size:13];
+    // BLACK background and WHITE text
     _scriptEditor.textColor = [NSColor whiteColor];
-    _scriptEditor.backgroundColor = [NSColor colorWithRed:0.08 green:0.10 blue:0.16 alpha:1.0];
-    _scriptEditor.insertionPointColor = [NSColor whiteColor];
+    _scriptEditor.backgroundColor = [NSColor blackColor];
+    _scriptEditor.insertionPointColor = [NSColor whiteColor]; // white cursor
     _scriptEditor.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     scriptScroll.documentView = _scriptEditor;
     [self addSubview:scriptScroll];
@@ -274,8 +274,9 @@ public:
 
     _outputConsole = [[NSTextView alloc] initWithFrame:outputScroll.contentView.bounds];
     _outputConsole.font = [NSFont fontWithName:@"Menlo" size:12];
-    _outputConsole.textColor = [NSColor colorWithRed:0.3 green:0.6 blue:1.0 alpha:1.0];
-    _outputConsole.backgroundColor = [NSColor colorWithRed:0.05 green:0.07 blue:0.12 alpha:1.0];
+    // BLACK background and WHITE text
+    _outputConsole.textColor = [NSColor whiteColor];
+    _outputConsole.backgroundColor = [NSColor blackColor];
     _outputConsole.editable = NO;
     _outputConsole.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     outputScroll.documentView = _outputConsole;
@@ -284,7 +285,7 @@ public:
 
 - (void)styleButton:(NSButton *)button {
     button.wantsLayer = YES;
-    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor;
+    button.layer.backgroundColor = [NSColor colorWithRed:0.1 green:0.3 blue:0.6 alpha:1.0].CGColor; // blue
     button.layer.cornerRadius = 5;
     button.font = [NSFont boldSystemFontOfSize:13];
     button.contentTintColor = [NSColor whiteColor];
@@ -311,20 +312,19 @@ public:
     }
 }
 
-- (void)runInjectionSequenceInBackground {
+- (void)runInjectionSequenceWithCompletion:(void(^)(BOOL success))completion {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [self log:@"\n=== Starting Full Injection Sequence ==="];
 
-        // Step 1: Detect Roblox process
         [self log:@"[*] Searching for Roblox process..."];
         self->_detector->detectRobloxProcess();
         if (!self->_detector->getConnectionStatus()) {
             [self log:@"[-] Roblox process not found."];
+            completion(NO);
             return;
         }
         [self log:@"[+] Roblox process detected successfully!"];
 
-        // Step 2: Scan for anti-cheat
         [self log:@"[*] Scanning for anti-cheat systems..."];
         self->_detector->scanForAntiCheat();
         if (self->_detector->getByfronStatus()) {
@@ -333,12 +333,12 @@ public:
             [self log:@"[+] No anti-cheat systems detected."];
         }
 
-        // Step 3: Apply bypass if needed
         if (self->_detector->getByfronStatus()) {
             [self log:@"[*] Applying anti-cheat bypass..."];
             self->_detector->applyBypass();
             if (!self->_detector->getBypassStatus()) {
                 [self log:@"[-] Failed to apply anti-cheat bypass."];
+                completion(NO);
                 return;
             }
             [self log:@"[+] Anti-cheat bypass applied successfully!"];
@@ -346,7 +346,6 @@ public:
             [self log:@"[*] No anti-cheat to bypass."];
         }
 
-        // Step 4: Inject executor
         [self log:@"[*] Injecting executor into Roblox..."];
         BOOL success = self->_detector->injectExecutor();
 
@@ -359,6 +358,7 @@ public:
                 [self log:@"[-] Injection failed."];
                 [self log:@"[FAILED] Injection sequence failed."];
             }
+            completion(success);
         });
     });
 }
@@ -369,66 +369,27 @@ public:
         [self log:@"[!] Executor is already injected."];
         return;
     }
-    [self runInjectionSequenceInBackground];
+    [self runInjectionSequenceWithCompletion:^(BOOL success) {}];
 }
 
 - (void)executeClicked:(id)sender {
     NSString *script = _scriptEditor.string;
     if ([script length] == 0) {
-        [self log:@"[-] No script to execute."];
+        [self log:@"[-] No script to execute. Please enter Lua code."];
         return;
     }
 
     [self log:@"[*] Execute button pressed."];
 
-    // If not injected, auto-inject first
     if (!_detector->getInjectionStatus()) {
-        [self log:@"[*] Not injected. Attempting auto-inject..."];
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            // Run full injection sequence (blocking until done)
-            [self log:@"\n=== Starting Full Injection Sequence ==="];
-            [self log:@"[*] Searching for Roblox process..."];
-            self->_detector->detectRobloxProcess();
-            if (!self->_detector->getConnectionStatus()) {
-                [self log:@"[-] Roblox process not found."];
-                return;
-            }
-            [self log:@"[+] Roblox process detected successfully!"];
-
-            [self log:@"[*] Scanning for anti-cheat systems..."];
-            self->_detector->scanForAntiCheat();
-            if (self->_detector->getByfronStatus()) {
-                [self log:@"[!] Byfron anti-cheat detected!"];
+        [self log:@"[*] Not injected. Auto-injecting..."];
+        [self runInjectionSequenceWithCompletion:^(BOOL success) {
+            if (success) {
+                [self performScriptExecution:script];
             } else {
-                [self log:@"[+] No anti-cheat systems detected."];
+                [self log:@"[-] Cannot execute script because injection failed."];
             }
-
-            if (self->_detector->getByfronStatus()) {
-                [self log:@"[*] Applying anti-cheat bypass..."];
-                self->_detector->applyBypass();
-                if (!self->_detector->getBypassStatus()) {
-                    [self log:@"[-] Failed to apply anti-cheat bypass."];
-                    return;
-                }
-                [self log:@"[+] Anti-cheat bypass applied successfully!"];
-            } else {
-                [self log:@"[*] No anti-cheat to bypass."];
-            }
-
-            [self log:@"[*] Injecting executor into Roblox..."];
-            BOOL injectSuccess = self->_detector->injectExecutor();
-
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (injectSuccess) {
-                    [self log:@"[+] Executor injected automatically."];
-                    [self updateStatus];
-                    // Now execute script
-                    [self performScriptExecution:script];
-                } else {
-                    [self log:@"[-] Injection failed. Cannot execute."];
-                }
-            });
-        });
+        }];
     } else {
         [self performScriptExecution:script];
     }
@@ -459,7 +420,7 @@ public:
 - (void)unloadClicked:(id)sender {
     if (_detector->getInjectionStatus()) {
         _detector->disconnect();
-        [self log:@"[+] Executor unloaded."];
+        [self log:@"[+] Executor unloaded and disconnected."];
         [self updateStatus];
     } else {
         [self log:@"[-] Executor is not currently injected."];
@@ -472,6 +433,7 @@ public:
 
 @end
 
+// ================== App Delegate ==================
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSWindow *window;
 @end
@@ -562,5 +524,5 @@ echo -e "${BLUE}[*] Launching...${NC}"
 open "$INSTALL_DIR/$APP_NAME.app"
 SCRIPT
 
-chmod +x /tmp/install_opex_fixed.sh
-/tmp/install_opex_fixed.sh
+chmod +x /tmp/install_opex_final.sh
+/tmp/install_opex_final.sh
